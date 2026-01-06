@@ -4,7 +4,7 @@ Instructions for AI coding agents working on BlueprintAI.
 
 ## Project Overview
 
-BlueprintAI is a task management system where AI agents generate PRDs (Product Requirements Documents) and tasks in markdown format, rendered in a Next.js web app with a premium UI.
+BlueprintAI is a task management system where AI agents generate PRDs (Product Requirements Documents) and based on PRDs, generate tasks in markdown format, that are rendered in a Next.js web app with a premium UI.
 
 ## Setup Commands
 
@@ -101,7 +101,8 @@ This subtask is done.
 1. Create `prd.md` with status `draft`
 2. User reviews and approves (status → `approved`)
 3. Generate `tasks.md` based on approved PRD
-4. Update `updated_at` when modifying files
+4. Update `updated_at` when modifying files with current date
+5. **System Documentation**: When modifying the **BlueprintAI codebase** (e.g., adding features, updating APIs, changing schemas), you MUST check and update `apps/docs` to reflect these changes. This ensures the system documentation remains accurate.
 
 ## Git Conventions
 
