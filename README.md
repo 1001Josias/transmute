@@ -206,6 +206,8 @@ A comprehensive list of planned features for future releases:
 ### UI/UX Enhancements
 | Feature | Description |
 |---------|-------------|
+| **PRD Enhanced Viewer** | Better PRD rendering with collapsible sections, table of contents, and syntax highlighting |
+| **PRD Editor** | Edit PRD content directly in the UI with live preview |
 | **Kanban View** | Drag-and-drop board view for tasks |
 | **Timeline/Gantt** | Visual timeline for project planning |
 | **Search & Filters** | Global search across all projects and tasks |
@@ -246,13 +248,9 @@ A comprehensive list of planned features for future releases:
 | **Export Formats** | PDF, CSV, and JSON exports |
 | **Backup & Restore** | Automated backups with restore points |
 | **Audit Log** | Complete history of all changes |
-
-## �📄 License
-
-MIT © [Josias Junior](https://github.com/1001Josias)
-
 ---
 
 <p align="center">
-  Made with 💜 for AI-assisted development
+  Made with 💜 by Josias Junior
 </p>
+
