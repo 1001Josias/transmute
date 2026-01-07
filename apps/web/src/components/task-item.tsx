@@ -166,7 +166,19 @@ export function TaskItem({ task, workspace, projectSlug }: TaskItemProps) {
               {task.description}
             </p>
 
-            <div className="flex items-center gap-4 text-xs">
+            {/* Comments for Task */}
+            {task.comments && task.comments.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {task.comments.map((comment, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-slate-400 bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                    <span className="shrink-0 mt-0.5">💬</span>
+                    <span>{comment}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="flex items-center gap-4 text-xs mt-2">
               <span className={cn("font-medium", priority.color)}>
                 {priority.label} Priority
               </span>
@@ -234,6 +246,17 @@ export function TaskItem({ task, workspace, projectSlug }: TaskItemProps) {
                     <p className="text-xs text-slate-500 mt-1">
                       {subtask.description}
                     </p>
+                  )}
+                  {/* Comments for Subtask */}
+                  {subtask.comments && subtask.comments.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {subtask.comments.map((comment, i) => (
+                        <div key={i} className="flex items-start gap-2 text-xs text-slate-400 bg-slate-800/30 p-1.5 rounded border border-slate-700/30">
+                          <span className="shrink-0 mt-0.5">💬</span>
+                          <span>{comment}</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>

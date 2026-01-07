@@ -113,6 +113,32 @@ This subtask is done.
    - Do NOT create a local/temporary todo list unless explicitly asked for a personal plan.
    - If the specific workspace or project mentioned does not exist in `projects/`, you should CREATE the necessary directory structure and files (`prd.md` and `tasks.md`).
 
+8. **Task Status Tracking**:
+   - When starting a task, update its status to `in_progress`.
+   - When completing a task or subtask, mark it as completed (update status to `done` or check the box `[x]`).
+   - **Verification**: If you are unsure about the completion (e.g., logically uncertain or low confidence in implementation), ASK the user for confirmation BEFORE marking the task as `done`.
+
+9. **Scope Changes**:
+   - If the user requests additional features or modifications to work that has already been **committed and marked as done**, do NOT reopen the old task.
+   - Instead, **create a new task or subtask** to track this new request.
+
+10. **Handling Blockers**:
+    - If a task is blocked (e.g., missing credentials, external dependency bug), explicitly update its status to `blocked` (`status: blocked`).
+    - Add a clear note explaining the reason using a comment: `- **comment:** Blocked because...`.
+
+11. **Discovered Technical Work**:
+    - If you discover technical prerequisites (e.g., refactoring, extra configuration) that were not in the original plan:
+    - **Add them as new subtasks** in `tasks.md` BEFORE executing them.
+    - This ensures the plan remains a true reflection of the work being done.
+
+12. **Concurrent Work Warning**:
+    - If you notice that other tasks in `tasks.md` are marked as `in_progress` while you are starting a new one, **notify the user**.
+    - Ask if this is intentional or if the previous task should be marked as done/blocked. This avoids "zombie tasks" that remain in progress indefinitely.
+
+13. **General Comments**:
+    - Use comments (`- **comment:** <text>`) to add context, observations, or important details to any task or subtask.
+    - This creates a centralized log of important information directly in the task definition.
+
 ## Git Conventions
 
 - Branch naming: `feat/<feature>`, `fix/<issue>`, `docs/<topic>`

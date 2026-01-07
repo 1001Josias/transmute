@@ -74,6 +74,7 @@ function parseTasks(content: string): Task[] {
   let subtaskTitle = "";
   let subtaskDescription = "";
   let subtaskCompleted = false;
+  let subtaskComments: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -94,6 +95,7 @@ function parseTasks(content: string): Task[] {
         priority: "medium",
         description: "",
         subtasks: [],
+        comments: [],
       };
       currentSubtasks = [];
       isInSubtasks = false;
@@ -138,6 +140,14 @@ function parseTasks(content: string): Task[] {
         continue;
       }
 
+      // Comments for Task
+      const commentMatch = line.match(/^- \*\*comment:\*\*\s*(.+)$/);
+      if (commentMatch && !isInSubtasks) {
+        if (!currentTask.comments) currentTask.comments = [];
+        currentTask.comments.push(commentMatch[1].trim());
+        continue;
+      }
+
       // Subtask title (#### [x] or #### [ ])
       if (isInSubtasks) {
         const subtaskTitleMatch = line.match(/^#### \[(x| )\]\s*(.+)$/);
@@ -148,12 +158,21 @@ function parseTasks(content: string): Task[] {
               title: subtaskTitle,
               description: subtaskDescription.trim() || undefined,
               completed: subtaskCompleted,
+              comments: subtaskComments,
             });
           }
 
           subtaskCompleted = subtaskTitleMatch[1] === "x";
           subtaskTitle = subtaskTitleMatch[2].trim();
           subtaskDescription = "";
+          subtaskComments = [];
+          continue;
+        }
+
+        // Comments for Subtask
+        const subtaskCommentMatch = line.match(/^- \*\*comment:\*\*\s*(.+)$/);
+        if (subtaskCommentMatch && subtaskTitle) {
+          subtaskComments.push(subtaskCommentMatch[1].trim());
           continue;
         }
 
@@ -171,6 +190,7 @@ function parseTasks(content: string): Task[] {
       title: subtaskTitle,
       description: subtaskDescription.trim() || undefined,
       completed: subtaskCompleted,
+      comments: subtaskComments,
     });
   }
 
