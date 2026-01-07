@@ -18,7 +18,7 @@ export function middleware(request: NextRequest) {
   };
 
   // If we have a token, try to find the workspace
-  let workspace = 'default';
+  let workspace: string | undefined;
   
   if (token && workspaceMap[token]) {
     workspace = workspaceMap[token];
@@ -32,7 +32,9 @@ export function middleware(request: NextRequest) {
 
   // Clone the request headers and set the x-workspace header
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-workspace', workspace);
+  if (workspace) {
+    requestHeaders.set('x-workspace', workspace);
+  }
 
   // Return the response with the new headers
   return NextResponse.next({
