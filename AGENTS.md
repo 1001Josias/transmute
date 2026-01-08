@@ -165,6 +165,12 @@ This subtask is done.
     - Do NOT create tasks automatically — always confirm first: "Would you like me to create a task/project in `projects/` to track this for later?"
     - This ensures ideas are captured without cluttering the backlog with unwanted items.
 
+19. **Unit Testing Proposals**:
+    - After completing an implementation, **ASK the user** if the feature is fully complete and if they would like you to create unit tests.
+    - Do NOT assume the implementation is final without confirmation.
+    - Do NOT create tests automatically — always propose first: "Implementation seems complete. Shall I add unit tests for this feature now?"
+
+
 ## Git Conventions
 
 - **Always start from updated main**: Before starting any new task, checkout `main`, pull latest changes (`git checkout main && git pull`), then create a new feature branch.
