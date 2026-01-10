@@ -9,7 +9,7 @@ updated_at: "2026-01-07"
 
 ## Task 1: Modal Base Structure
 - **id:** tdm-001
-- **status:** in_progress
+- **status:** done
 - **priority:** high
 - **description:** Create the base modal component with task details display.
 
