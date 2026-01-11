@@ -173,6 +173,12 @@ This subtask is done.
     - Do NOT assume the implementation is final without confirmation.
     - Do NOT create tests automatically — always propose first: "Implementation seems complete. Shall I add unit tests for this feature now?"
 
+20. **Final Response Links**:
+    - When confirming a task is completed in your final response to the user, **ALWAYS** include:
+      - The link/path to the finalized Task in `projects/.../tasks.md`
+      - The Pull Request URL (if applicable)
+    - This ensures easy navigation and verification for the user.
+
 
 
 ## State Management Guidelines

@@ -67,3 +67,5 @@ Create implementation plan for new filter logic.
 #### [x] Update Sidebar UI
 Replace existing filter buttons with new set: All, Planning, In Progress.
 
+**PR:** [feat: implement improved sidebar filters](https://github.com/1001Josias/blueprint-ai/pull/29)
+
