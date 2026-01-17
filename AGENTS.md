@@ -336,3 +336,31 @@ After completing a task and creating the PR, the agent MUST perform a **learning
    - `.agent/workflows/` — for repeatable multi-step processes
 
 > **Goal**: Each session should leave behind wisdom for future agents. The guidelines file is a living document that evolves with practical experience.
+
+## Monorepo Development
+
+### Build de Packages Internos
+
+Antes de testar o app (`apps/web`), certifique-se de que os packages internos (`@repo/schemas`, `@repo/utils`) estão buildados:
+
+```bash
+pnpm --filter @repo/schemas build
+pnpm --filter @repo/utils build
+# ou simplesmente
+pnpm build
+```
+
+Os packages apontam para `./dist/` no `package.json`. Se o `dist/` não existir, o Next.js falhará com erros de "Module not found".
+
+## PRD Planning
+
+### Confirmar Decisões de Design
+
+Ao criar PRDs, não assuma decisões de design sem confirmar com o usuário. Exemplos de pontos que requerem confirmação:
+
+- Geração de dados via IA vs lógica determinística
+- Escolha de tecnologias/ferramentas específicas
+- Trade-offs de escopo (MVP vs pós-MVP)
+- Localização de código no monorepo (apps/ vs packages/)
+
+Pergunte explicitamente antes de finalizar o documento.
