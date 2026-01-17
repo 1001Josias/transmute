@@ -52,51 +52,79 @@ Atualizar `turbo.json` para incluir o novo app no pipeline de build.
 
 ---
 
-## Task 2: Core - Branch Naming
+## Task 2: Core - AI Branch Naming
 
 - **id:** oc-trans-002
 - **status:** todo
 - **priority:** high
-- **description:** Implementar lógica de geração de nomes de branch baseada em task ID/nome.
+- **description:** Implementar geração inteligente de nomes de branch via IA, baseada no contexto da tarefa.
 - **dependencies:** oc-trans-001
 
 ### Subtasks
 
-#### [ ] Definir schema de entrada
+#### [ ] Definir schema de entrada (TaskContext)
 
 ```typescript
-interface BranchNameInput {
-  taskId: string;
-  taskName?: string;
-  prefix?: string; // default: "feat"
+interface TaskContext {
+  id: string;
+  title: string;
+  description: string;
+  priority?: string;
+  type?: string; // hint opcional: feat, fix, refactor, etc.
+}
+
+interface BranchNameResult {
+  branch: string;
+  type: string; // feat, fix, refactor, docs, chore, test
+  slug: string;
 }
 ```
 
-#### [ ] Implementar função de sanitização
+#### [ ] Implementar prompt para geração de branch name
 
-Converter strings para formato válido de branch:
+Criar prompt que instrui a IA a:
 
-- lowercase
-- remover caracteres especiais
-- substituir espaços por hífens
-- limitar tamanho
+- Analisar título e descrição da tarefa
+- Inferir o tipo de mudança (feat, fix, refactor, docs, chore, test)
+- Extrair palavras-chave relevantes
+- Gerar slug conciso e descritivo (máx. 50 chars)
+- Seguir convenções de git branch naming
 
-#### [ ] Implementar generateBranchName
+#### [ ] Implementar função generateBranchName
 
 ```typescript
 // apps/opencode-transmute/src/core/naming.ts
-function generateBranchName(input: BranchNameInput): string;
-// Ex: "feat/task-123-implement-auth"
+async function generateBranchName(
+  context: TaskContext,
+): Promise<BranchNameResult>;
+// Ex output: { branch: "feat/implement-oauth-google-login", type: "feat", slug: "implement-oauth-google-login" }
 ```
 
-#### [ ] Adicionar testes unitários
+#### [ ] Implementar sanitização e validação
+
+Garantir que o nome gerado:
+
+- É lowercase
+- Não contém caracteres inválidos para git
+- Não excede limite de tamanho
+- Tem formato `<type>/<slug>`
+
+#### [ ] Implementar fallback determinístico
+
+Caso a IA falhe, gerar nome baseado em:
+
+- Task ID + primeiras palavras do título
+- Ex: `feat/task-123-implement-auth`
+
+#### [ ] Adicionar testes
 
 Cobrir casos:
 
-- Task ID simples
-- Task com nome longo
-- Caracteres especiais no nome
-- Prefixos customizados
+- Tarefa com descrição rica
+- Tarefa com título apenas
+- Tarefa com caracteres especiais
+- Fallback quando IA falha
+- Diferentes tipos inferidos (feat, fix, etc.)
 
 ---
 
@@ -287,7 +315,10 @@ Indicar sucesso/falha claramente.
 ```typescript
 const startTaskInputSchema = z.object({
   taskId: z.string(),
-  taskName: z.string().optional(),
+  title: z.string(),
+  description: z.string().optional(),
+  priority: z.string().optional(),
+  type: z.string().optional(), // hint: feat, fix, refactor, etc.
   baseBranch: z.string().optional(),
 });
 ```
@@ -296,7 +327,7 @@ const startTaskInputSchema = z.object({
 
 1. Verificar se já existe sessão para taskId
 2. Se existe, retornar worktree existente
-3. Gerar nome de branch
+3. Gerar nome de branch via IA (usando título, descrição, contexto)
 4. Criar worktree
 5. Persistir sessão
 6. Abrir terminal no worktree
@@ -579,7 +610,7 @@ Usar `wezterm start` ao invés de `wezterm cli spawn`.
 | Ordem | Task         | Justificativa                                   |
 | ----- | ------------ | ----------------------------------------------- |
 | 1     | oc-trans-001 | Setup é pré-requisito para tudo                 |
-| 2     | oc-trans-002 | Branch naming é simples e independente          |
+| 2     | oc-trans-002 | AI Branch naming é core e precisa de iteração   |
 | 3     | oc-trans-003 | Worktree é a funcionalidade central             |
 | 4     | oc-trans-004 | Persistência é simples mas necessária           |
 | 5     | oc-trans-005 | Terminal é a interface do usuário               |

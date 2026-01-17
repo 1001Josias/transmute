@@ -43,7 +43,7 @@ O **opencode-transmute** resolve isso oferecendo:
 ### MVP (Escopo Principal)
 
 1. **Isolamento por Tarefa**
-   - Criação automática de branch baseada na tarefa
+   - Geração inteligente de nome de branch via IA (baseada no contexto da tarefa)
    - Git worktree dedicado por tarefa
    - Associação clara: tarefa ↔ branch ↔ worktree
 
@@ -78,14 +78,14 @@ O **opencode-transmute** resolve isso oferecendo:
 
 ### Escopo (MVP)
 
-| Item                 | Descrição                               |
-| -------------------- | --------------------------------------- |
-| Branch naming        | Gerar nome de branch baseado em task ID |
-| Git worktree         | Criar worktree isolado para cada tarefa |
-| Terminal session     | Abrir sessão WezTerm na mesma janela    |
-| Hooks                | Executar comandos declarados após setup |
-| Persistência         | Salvar estado mínimo para retomada      |
-| OpenCode integration | Funcionar como plugin/tool do OpenCode  |
+| Item                 | Descrição                                                 |
+| -------------------- | --------------------------------------------------------- |
+| Branch naming (IA)   | Gerar nome de branch via IA baseado no contexto da tarefa |
+| Git worktree         | Criar worktree isolado para cada tarefa                   |
+| Terminal session     | Abrir sessão WezTerm na mesma janela                      |
+| Hooks                | Executar comandos declarados após setup                   |
+| Persistência         | Salvar estado mínimo para retomada                        |
+| OpenCode integration | Funcionar como plugin/tool do OpenCode                    |
 
 ### Não-Escopo (MVP)
 
@@ -163,8 +163,12 @@ transmute/
 ### Fluxo de `start-task`
 
 ```
-1. Receber task ID/nome
-2. Gerar nome de branch (ex: feat/task-123-description)
+1. Receber task (ID, título, descrição, contexto)
+2. Gerar nome de branch via IA:
+   - Analisar título e descrição da tarefa
+   - Inferir tipo (feat, fix, refactor, docs, etc.)
+   - Criar slug descritivo e conciso
+   - Ex: "feat/implement-user-authentication-flow"
 3. Verificar se já existe worktree para esta tarefa
 4. Se não existe:
    a. Criar branch a partir de main
@@ -173,6 +177,39 @@ transmute/
 5. Abrir sessão WezTerm no diretório do worktree
 6. Executar hooks declarados (install, setup, etc.)
 7. Retornar status e path do worktree
+```
+
+### Geração de Branch Name via IA
+
+A IA analisa o contexto da tarefa para gerar um nome de branch semântico:
+
+**Input:**
+
+```typescript
+interface TaskContext {
+  id: string;
+  title: string;
+  description: string;
+  priority?: string;
+  type?: string; // feat, fix, refactor, etc.
+}
+```
+
+**Processo:**
+
+1. Analisar título e descrição para entender o escopo
+2. Inferir o tipo de mudança (feat, fix, refactor, docs, chore, test)
+3. Extrair palavras-chave relevantes
+4. Gerar slug conciso (máx. 50 chars após prefixo)
+5. Garantir formato válido para git branch
+
+**Output:**
+
+```
+feat/implement-oauth-google-login
+fix/resolve-memory-leak-in-worker
+refactor/extract-validation-utils
+docs/add-api-reference-guide
 ```
 
 ### Hooks Declarativos
@@ -232,7 +269,20 @@ interface TransmuteState {
 
 ## Decisões Técnicas
 
-### D1: WezTerm como terminal principal
+### D1: Branch naming via IA
+
+**Decisão**: Usar IA para gerar nomes de branch baseados no contexto da tarefa.
+
+**Razão**:
+
+- Nomes mais descritivos e semânticos que IDs numéricos
+- Inferência automática do tipo de mudança (feat, fix, etc.)
+- Reduz atrito cognitivo do desenvolvedor
+- Branches auto-documentadas facilitam code review
+
+**Trade-off**: Dependência de LLM, possível variação nos nomes gerados.
+
+### D2: WezTerm como terminal principal
 
 **Decisão**: Usar WezTerm como única integração de terminal no MVP.
 
@@ -244,7 +294,7 @@ interface TransmuteState {
 
 **Trade-off**: Usuários de outros terminais precisarão aguardar pós-MVP.
 
-### D2: Git worktrees vs branches simples
+### D3: Git worktrees vs branches simples
 
 **Decisão**: Usar git worktrees para isolamento real.
 
@@ -256,7 +306,7 @@ interface TransmuteState {
 
 **Trade-off**: Usa mais espaço em disco, requer gestão de worktrees.
 
-### D3: Hooks declarativos vs scripts arbitrários
+### D4: Hooks declarativos vs scripts arbitrários
 
 **Decisão**: Apenas hooks declarados em config são executados.
 
@@ -268,7 +318,7 @@ interface TransmuteState {
 
 **Trade-off**: Menos flexibilidade para casos edge.
 
-### D4: Persistência mínima
+### D5: Persistência mínima
 
 **Decisão**: Persistir apenas dados de mapeamento tarefa→worktree.
 
