@@ -240,62 +240,6 @@ export const useUIStore = create<UIStore>()(
 - **Read-Write separation:** Components should read from URL hooks for rendering and write to URL hooks for user actions.
 - **Syncing:** If an optimistic update needs to reflect immediately while the server processes, store the _pending_ state in Zustand, but the _source of truth_ for the initial view remains the server data + URL params. (See `useTaskStore.optimisticStatus`).
 
-## State Management Guidelines
-
-To ensure consistency and correct behavior across the application, follow these boundaries for state management:
-
-### 1. URL State (nuqs)
-
-**Use for:** Shareable, bookmarkable, or deep-linkable state.
-
-- **Filters/Sorts:** List filters (e.g., `?status=done`), sorting preferences.
-- **Selection:** Currently selected item (e.g., `?task=task-123`).
-- **Pagination:** Current page number (e.g., `?page=2`).
-- **View Modes:** Tabs or view toggles that affect the main content (e.g., `?view=calendar`).
-
-**Pattern:** Create a custom hook in `@/lib/search-params.ts` to wrap `useQueryState`.
-
-```typescript
-// @/lib/search-params.ts
-export function useTaskSearchParams() {
-  const [filter, setFilter] = useQueryState(
-    "filter",
-    parseAsString.withDefault("all"),
-  );
-  return { filter, setFilter };
-}
-```
-
-### 2. Application State (Zustand)
-
-**Use for:** Global app state, server cache, or user preferences that shouldn't be in the URL.
-
-- **Server Cache:** Optimistic updates, data cache (e.g., `optimisticStatus`).
-- **UI State (Ephemeral):** Loading states, pending flags, drag-and-drop intermediate state.
-- **UI Preferences (Persisted):** Sidebar collapse state, theme preference, "Show archived" sidebar toggle (if tailored to user).
-
-**Pattern:** Create feature-specific stores in `@/lib/stores/`.
-
-```typescript
-// @/lib/stores/ui-store.ts
-export const useUIStore = create<UIStore>()(
-  persist(
-    (set) => ({
-      sidebarOpen: true,
-      toggleSidebar: () =>
-        set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-    }),
-    { name: "ui-store" },
-  ),
-);
-```
-
-### 3. Integration Logic
-
-- **Do NOT duplicate URL state in Zustand** unless absolutely necessary (e.g., complex derived state that needs to be accessed outside React tree - rare).
-- **Read-Write separation:** Components should read from URL hooks for rendering and write to URL hooks for user actions.
-- **Syncing:** If an optimistic update needs to reflect immediately while the server processes, store the _pending_ state in Zustand, but the _source of truth_ for the initial view remains the server data + URL params. (See `useTaskStore.optimisticStatus`).
-
 ## Git Conventions
 
 - **Always start from updated main**: Before starting any new task, checkout `main`, pull latest changes (`git checkout main && git pull`), then create a new feature branch.
@@ -336,3 +280,29 @@ After completing a task and creating the PR, the agent MUST perform a **learning
    - `.agent/workflows/` — for repeatable multi-step processes
 
 > **Goal**: Each session should leave behind wisdom for future agents. The guidelines file is a living document that evolves with practical experience.
+
+## PRD Planning
+
+### Confirm Design Decisions
+
+When creating PRDs, do not assume design decisions without confirming with the user. Examples of points that require confirmation:
+
+- AI-generated data vs deterministic logic
+- Choice of specific technologies/tools
+- Scope trade-offs (MVP vs post-MVP)
+- Code location in the monorepo (apps/ vs packages/)
+
+Ask explicitly before finalizing the document.
+
+### Use Interactive Mode for Decisions
+
+When there are design decisions that need explicit user input, **use the terminal interactive mode** (`question` tool) to present the options.
+
+Examples of when to use:
+
+- Choosing between technical approaches (AI vs deterministic)
+- Defining scope (MVP vs post-MVP)
+- Selecting technologies/tools
+- Deciding code location in the monorepo
+
+This ensures the user makes informed decisions before proceeding.
