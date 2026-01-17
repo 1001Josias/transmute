@@ -283,26 +283,26 @@ After completing a task and creating the PR, the agent MUST perform a **learning
 
 ## PRD Planning
 
-### Confirmar Decisões de Design
+### Confirm Design Decisions
 
-Ao criar PRDs, não assuma decisões de design sem confirmar com o usuário. Exemplos de pontos que requerem confirmação:
+When creating PRDs, do not assume design decisions without confirming with the user. Examples of points that require confirmation:
 
-- Geração de dados via IA vs lógica determinística
-- Escolha de tecnologias/ferramentas específicas
-- Trade-offs de escopo (MVP vs pós-MVP)
-- Localização de código no monorepo (apps/ vs packages/)
+- AI-generated data vs deterministic logic
+- Choice of specific technologies/tools
+- Scope trade-offs (MVP vs post-MVP)
+- Code location in the monorepo (apps/ vs packages/)
 
-Pergunte explicitamente antes de finalizar o documento.
+Ask explicitly before finalizing the document.
 
-### Usar Modo Interativo para Decisões
+### Use Interactive Mode for Decisions
 
-Quando houver decisões de design que precisam de definição explícita do usuário, **use o modo interativo do terminal** (tool `question`) para apresentar as opções.
+When there are design decisions that need explicit user input, **use the terminal interactive mode** (`question` tool) to present the options.
 
-Exemplos de quando usar:
+Examples of when to use:
 
-- Escolher entre abordagens técnicas (IA vs determinístico)
-- Definir escopo (MVP vs pós-MVP)
-- Selecionar tecnologias/ferramentas
-- Decidir localização de código no monorepo
+- Choosing between technical approaches (AI vs deterministic)
+- Defining scope (MVP vs post-MVP)
+- Selecting technologies/tools
+- Deciding code location in the monorepo
 
-Isso garante que o usuário tome decisões informadas antes de continuar.
+This ensures the user makes informed decisions before proceeding.
