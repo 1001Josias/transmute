@@ -7,48 +7,60 @@ updated_at: "2026-01-17"
 
 # Tasks: OpenCode Transmute Plugin
 
+> **Nota:** Testes unitários são obrigatórios para todas as tasks de implementação. Cada task deve incluir testes com vitest antes de ser considerada concluída.
+
 ---
 
 ## Task 1: Project Setup
 
 - **id:** oc-trans-001
-- **status:** todo
+- **status:** done
 - **priority:** critical
 - **description:** Inicializar estrutura do app opencode-transmute no monorepo Transmute.
+- **comment:** Package created at `packages/opencode-transmute/` (changed from `apps/` per architecture decision for npm-publishable package).
 
 ### Subtasks
 
-#### [ ] Criar estrutura de diretórios
+#### [x] Criar estrutura de diretórios
 
-Criar `apps/opencode-transmute` com estrutura:
+Criado `packages/opencode-transmute` com estrutura:
 
 ```
-apps/opencode-transmute/
+packages/opencode-transmute/
 ├── src/
 │   ├── core/
+│   │   ├── naming.ts
+│   │   ├── worktree.ts
+│   │   ├── session.ts
+│   │   └── hooks.ts
 │   ├── adapters/
+│   │   └── terminal/
+│   │       ├── types.ts
+│   │       ├── wezterm.ts
+│   │       └── index.ts
 │   ├── tools/
+│   │   └── start-task.ts
 │   └── index.ts
 ├── package.json
-└── tsconfig.json
+├── tsconfig.json
+└── eslint.config.mjs
 ```
 
-#### [ ] Configurar package.json
+#### [x] Configurar package.json
 
-Definir dependências mínimas:
+Dependências configuradas:
 
-- typescript
+- typescript (via tsup)
 - zod (validação)
-- `@repo/schemas` (schemas compartilhados)
-- `@repo/utils` (utilitários compartilhados)
+- `@opencode-ai/plugin` (peer dependency para SDK do OpenCode)
 
-#### [ ] Configurar TypeScript
+#### [x] Configurar TypeScript
 
-Criar `tsconfig.json` estendendo `@repo/tsconfig`.
+`tsconfig.json` estendendo `@repo/typescript-config/base.json`.
 
-#### [ ] Registrar no Turborepo
+#### [x] Registrar no Turborepo
 
-Atualizar `turbo.json` para incluir o novo app no pipeline de build.
+Package automaticamente detectado pelo pnpm workspace. Build e lint funcionando via turbo.
 
 ---
 
@@ -116,15 +128,15 @@ Caso a IA falhe, gerar nome baseado em:
 - Task ID + primeiras palavras do título
 - Ex: `feat/task-123-implement-auth`
 
-#### [ ] Adicionar testes
+#### [ ] Adicionar testes unitários
 
-Cobrir casos:
+Cobrir casos com vitest:
 
-- Tarefa com descrição rica
-- Tarefa com título apenas
-- Tarefa com caracteres especiais
-- Fallback quando IA falha
-- Diferentes tipos inferidos (feat, fix, etc.)
+- `sanitizeBranchName`: lowercase, remove caracteres inválidos, limite de tamanho
+- `generateFallbackBranchName`: gera nome correto a partir de task ID e título
+- `generateBranchName`: retorna resultado válido (mock da IA)
+- `generateBranchName`: usa fallback quando IA falha
+- Diferentes tipos inferidos (feat, fix, refactor, docs, chore, test)
 
 ---
 
@@ -176,6 +188,15 @@ Verificar se já existe worktree para uma branch específica.
 - Git não inicializado
 - Base branch não existe
 
+#### [ ] Adicionar testes unitários
+
+Cobrir casos com vitest:
+
+- `listWorktrees`: parsing correto do output `git worktree list --porcelain`
+- `createWorktree`: chamada correta ao git, criação de diretório
+- `worktreeExists`: retorna true/false corretamente
+- Erros: branch já existe, diretório já existe, git não inicializado
+
 ---
 
 ## Task 4: Core - Session Persistence
@@ -223,6 +244,16 @@ Helpers para manipular lista de sessões.
 
 Buscar sessão existente por taskId.
 
+#### [ ] Adicionar testes unitários
+
+Cobrir casos com vitest:
+
+- `loadState`: arquivo não existe retorna estado vazio, arquivo válido é parseado, arquivo inválido lança erro
+- `saveState`: cria diretório se não existe, escreve JSON válido
+- `addSession`: adiciona sessão ao estado
+- `removeSession`: remove sessão existente, ignora se não existe
+- `findSessionByTask`: encontra sessão, retorna undefined se não existe
+
 ---
 
 ## Task 5: Adapter - WezTerm Integration
@@ -266,6 +297,14 @@ Opcionalmente executar comandos iniciais.
 - Falha ao abrir sessão
 - Path inválido
 
+#### [ ] Adicionar testes unitários
+
+Cobrir casos com vitest (mockando execução de comandos):
+
+- `isAvailable`: retorna true quando wezterm está no PATH, false caso contrário
+- `openSession`: constrói comando correto com cwd e title
+- Erros: WezTerm não instalado, path inválido
+
 ---
 
 ## Task 6: Core - Hooks System
@@ -297,6 +336,15 @@ Continuar ou parar em caso de erro (configurável).
 
 Mostrar output de cada comando executado.
 Indicar sucesso/falha claramente.
+
+#### [ ] Adicionar testes unitários
+
+Cobrir casos com vitest (mockando execução de comandos):
+
+- `executeHooks`: executa comandos em sequência
+- `executeHooks`: para na primeira falha (modo strict)
+- `executeHooks`: continua após falha (modo lenient)
+- `executeHooks`: captura stdout/stderr corretamente
 
 ---
 
