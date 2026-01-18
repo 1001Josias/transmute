@@ -1,7 +1,8 @@
 /**
  * Custom Errors for Git Worktree Operations
  *
- * Provides typed errors for better error handling in worktree operations.
+ * Provides factory functions for errors in worktree operations.
+ * Using factory functions instead of classes to avoid build issues with "constructor without new".
  */
 
 /**
@@ -19,121 +20,82 @@ export const WorktreeErrorCode = {
 export type WorktreeErrorCodeType =
   (typeof WorktreeErrorCode)[keyof typeof WorktreeErrorCode];
 
-/**
- * Base error class for worktree operations
- */
-export class WorktreeError extends Error {
-  readonly code: WorktreeErrorCodeType;
+export interface WorktreeError extends Error {
+  code: WorktreeErrorCodeType;
+  // Specific properties for different error types
+  branch?: string;
+  path?: string;
+  command?: string;
+  stderr?: string;
+  exitCode?: number;
+}
 
-  constructor(message: string, code: WorktreeErrorCodeType) {
-    super(message);
-    this.name = "WorktreeError";
-    this.code = code;
-  }
+export function isWorktreeError(error: unknown): error is WorktreeError {
+  return error instanceof Error && "code" in error;
+}
+
+export function createBranchAlreadyExistsError(branch: string): WorktreeError {
+  const message = `Branch '${branch}' already exists. Use a different branch name or checkout the existing branch.`;
+  const error = new Error(message) as WorktreeError;
+  error.name = "BranchAlreadyExistsError";
+  error.code = WorktreeErrorCode.BRANCH_EXISTS;
+  error.branch = branch;
+  return error;
+}
+
+export function createDirectoryAlreadyExistsError(path: string): WorktreeError {
+  const message = `Directory '${path}' already exists. Choose a different path or remove the existing directory.`;
+  const error = new Error(message) as WorktreeError;
+  error.name = "DirectoryAlreadyExistsError";
+  error.code = WorktreeErrorCode.DIR_EXISTS;
+  error.path = path;
+  return error;
+}
+
+export function createGitNotInitializedError(path: string): WorktreeError {
+  const message = `Not a git repository: '${path}'. Initialize git or navigate to a git repository.`;
+  const error = new Error(message) as WorktreeError;
+  error.name = "GitNotInitializedError";
+  error.code = WorktreeErrorCode.NO_GIT_REPO;
+  error.path = path;
+  return error;
+}
+
+export function createBaseBranchNotFoundError(branch: string): WorktreeError {
+  const message = `Base branch '${branch}' not found. Verify the branch name or fetch from remote.`;
+  const error = new Error(message) as WorktreeError;
+  error.name = "BaseBranchNotFoundError";
+  error.code = WorktreeErrorCode.BASE_NOT_FOUND;
+  error.branch = branch;
+  return error;
+}
+
+export function createWorktreeNotFoundError(branch: string): WorktreeError {
+  const message = `Worktree for branch '${branch}' not found.`;
+  const error = new Error(message) as WorktreeError;
+  error.name = "WorktreeNotFoundError";
+  error.code = WorktreeErrorCode.WORKTREE_NOT_FOUND;
+  error.branch = branch;
+  return error;
+}
+
+export function createExecError(
+  command: string,
+  stderr: string,
+  exitCode: number,
+): WorktreeError {
+  const message = `Command failed: ${command}\nExit code: ${exitCode}\n${stderr}`;
+  const error = new Error(message) as WorktreeError;
+  error.name = "ExecError";
+  error.code = WorktreeErrorCode.EXEC_FAILED;
+  error.command = command;
+  error.stderr = stderr;
+  error.exitCode = exitCode;
+  return error;
 }
 
 /**
- * Thrown when a git branch already exists
- */
-export class BranchAlreadyExistsError extends WorktreeError {
-  readonly branch: string;
-
-  constructor(branch: string) {
-    super(
-      `Branch '${branch}' already exists. Use a different branch name or checkout the existing branch.`,
-      WorktreeErrorCode.BRANCH_EXISTS,
-    );
-    this.name = "BranchAlreadyExistsError";
-    this.branch = branch;
-  }
-}
-
-/**
- * Thrown when the target directory already exists
- */
-export class DirectoryAlreadyExistsError extends WorktreeError {
-  readonly path: string;
-
-  constructor(path: string) {
-    super(
-      `Directory '${path}' already exists. Choose a different path or remove the existing directory.`,
-      WorktreeErrorCode.DIR_EXISTS,
-    );
-    this.name = "DirectoryAlreadyExistsError";
-    this.path = path;
-  }
-}
-
-/**
- * Thrown when not in a git repository
- */
-export class GitNotInitializedError extends WorktreeError {
-  readonly path: string;
-
-  constructor(path: string) {
-    super(
-      `Not a git repository: '${path}'. Initialize git or navigate to a git repository.`,
-      WorktreeErrorCode.NO_GIT_REPO,
-    );
-    this.name = "GitNotInitializedError";
-    this.path = path;
-  }
-}
-
-/**
- * Thrown when the base branch doesn't exist
- */
-export class BaseBranchNotFoundError extends WorktreeError {
-  readonly branch: string;
-
-  constructor(branch: string) {
-    super(
-      `Base branch '${branch}' not found. Verify the branch name or fetch from remote.`,
-      WorktreeErrorCode.BASE_NOT_FOUND,
-    );
-    this.name = "BaseBranchNotFoundError";
-    this.branch = branch;
-  }
-}
-
-/**
- * Thrown when a worktree is not found
- */
-export class WorktreeNotFoundError extends WorktreeError {
-  readonly branch: string;
-
-  constructor(branch: string) {
-    super(
-      `Worktree for branch '${branch}' not found.`,
-      WorktreeErrorCode.WORKTREE_NOT_FOUND,
-    );
-    this.name = "WorktreeNotFoundError";
-    this.branch = branch;
-  }
-}
-
-/**
- * Thrown when command execution fails
- */
-export class ExecError extends WorktreeError {
-  readonly command: string;
-  readonly stderr: string;
-  readonly exitCode: number;
-
-  constructor(command: string, stderr: string, exitCode: number) {
-    super(
-      `Command failed: ${command}\nExit code: ${exitCode}\n${stderr}`,
-      WorktreeErrorCode.EXEC_FAILED,
-    );
-    this.name = "ExecError";
-    this.command = command;
-    this.stderr = stderr;
-    this.exitCode = exitCode;
-  }
-}
-
-/**
- * Error codes for terminal operations
+ * Terminal Errors
  */
 export const TerminalErrorCode = {
   NOT_AVAILABLE: "NOT_AVAILABLE",
@@ -144,65 +106,42 @@ export const TerminalErrorCode = {
 export type TerminalErrorCodeType =
   (typeof TerminalErrorCode)[keyof typeof TerminalErrorCode];
 
-/**
- * Base error class for terminal operations
- */
-export class TerminalError extends Error {
-  readonly code: TerminalErrorCodeType;
-
-  constructor(message: string, code: TerminalErrorCodeType) {
-    super(message);
-    this.name = "TerminalError";
-    this.code = code;
-  }
+export interface TerminalError extends Error {
+  code: TerminalErrorCodeType;
+  terminal?: string;
+  reason?: string;
+  path?: string;
 }
 
-/**
- * Thrown when a terminal emulator is not available
- */
-export class TerminalNotAvailableError extends TerminalError {
-  readonly terminal: string;
-
-  constructor(terminal: string) {
-    super(
-      `Terminal '${terminal}' is not available. Please install it or check your PATH.`,
-      TerminalErrorCode.NOT_AVAILABLE,
-    );
-    this.name = "TerminalNotAvailableError";
-    this.terminal = terminal;
-  }
+export function createTerminalNotAvailableError(
+  terminal: string,
+): TerminalError {
+  const message = `Terminal '${terminal}' is not available. Please install it or check your PATH.`;
+  const error = new Error(message) as TerminalError;
+  error.name = "TerminalNotAvailableError";
+  error.code = TerminalErrorCode.NOT_AVAILABLE;
+  error.terminal = terminal;
+  return error;
 }
 
-/**
- * Thrown when spawning a terminal session fails
- */
-export class TerminalSpawnError extends TerminalError {
-  readonly terminal: string;
-  readonly reason: string;
-
-  constructor(terminal: string, reason: string) {
-    super(
-      `Failed to spawn terminal session in '${terminal}': ${reason}`,
-      TerminalErrorCode.SPAWN_FAILED,
-    );
-    this.name = "TerminalSpawnError";
-    this.terminal = terminal;
-    this.reason = reason;
-  }
+export function createTerminalSpawnError(
+  terminal: string,
+  reason: string,
+): TerminalError {
+  const message = `Failed to spawn terminal session in '${terminal}': ${reason}`;
+  const error = new Error(message) as TerminalError;
+  error.name = "TerminalSpawnError";
+  error.code = TerminalErrorCode.SPAWN_FAILED;
+  error.terminal = terminal;
+  error.reason = reason;
+  return error;
 }
 
-/**
- * Thrown when the working directory path is invalid
- */
-export class InvalidPathError extends TerminalError {
-  readonly path: string;
-
-  constructor(path: string) {
-    super(
-      `Invalid path: '${path}'. The directory does not exist or is not accessible.`,
-      TerminalErrorCode.INVALID_PATH,
-    );
-    this.name = "InvalidPathError";
-    this.path = path;
-  }
+export function createInvalidPathError(path: string): TerminalError {
+  const message = `Invalid path: '${path}'. The directory does not exist or is not accessible.`;
+  const error = new Error(message) as TerminalError;
+  error.name = "InvalidPathError";
+  error.code = TerminalErrorCode.INVALID_PATH;
+  error.path = path;
+  return error;
 }

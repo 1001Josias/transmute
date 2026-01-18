@@ -12,7 +12,24 @@ import { z } from "zod";
  * Only includes the session.prompt method needed for AI inference.
  */
 export interface OpenCodeClient {
+  app: {
+    log(options: {
+      body: {
+        service?: string;
+        level: "debug" | "info" | "warn" | "error";
+        message: string;
+        extra?: Record<string, unknown>;
+      };
+    }): Promise<void>;
+  };
   session: {
+    create(options?: {
+      body?: {
+        workspace?: string;
+        project?: string;
+      };
+    }): Promise<{ id: string }>;
+    delete(options: { path: { id: string } }): Promise<void>;
     prompt(options: {
       path: { id: string };
       body: {
@@ -107,7 +124,8 @@ export const taskContextSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   priority: z.string().optional(),
-  type: branchTypeSchema.optional(),
+  // Accept any string for type - we'll validate/default in the functions
+  type: z.string().optional(),
 });
 
 export const branchNameResultSchema = z.object({
@@ -139,19 +157,61 @@ export async function generateBranchName(
   client?: OpenCodeClient,
   sessionId?: string,
 ): Promise<BranchNameResult> {
-  // Validate input
-  taskContextSchema.parse(context);
+  // Validate input using safeParse to avoid throwing
+  const validated = taskContextSchema.safeParse(context);
+  if (!validated.success) {
+    // Log validation error and use fallback with raw context
+    if (client?.app) {
+      await client.app.log({
+        body: {
+          service: "opencode-transmute",
+          level: "warn",
+          message: `Task context validation failed: ${validated.error.message}. Using fallback.`,
+        },
+      });
+    }
+    console.error(`[opencode-transmute] Task context validation failed:`, validated.error);
+    // Use fallback with the raw context (best effort)
+    return generateFallbackBranchName(context);
+  }
 
   // If client and sessionId provided, try AI generation
-  if (client && sessionId) {
+  // NOTE: sessionId must start with "ses" for OpenCode SDK validation
+  if (client && sessionId && sessionId.startsWith("ses")) {
     try {
+      // Log that we're attempting AI generation
+      if (client.app) {
+        await client.app.log({
+          body: {
+            service: "opencode-transmute",
+            level: "debug",
+            message: `Attempting AI branch name generation for task: ${context.id}`,
+          },
+        });
+      }
       return await generateBranchNameWithAI(context, client, sessionId);
     } catch (error) {
-      console.warn(
-        "[transmute] AI branch naming failed, using fallback:",
-        error,
-      );
+      console.error(`[opencode-transmute] AI branch naming failed:`, error);
+      
+      if (client.app) {
+        await client.app.log({
+          body: {
+            service: "opencode-transmute",
+            level: "warn",
+            message: `AI branch naming failed, using fallback: ${(error as Error).message}`,
+          },
+        });
+      }
     }
+  } else if (client?.app) {
+    // Log why we're using fallback
+    await client.app.log({
+      body: {
+        service: "opencode-transmute",
+        level: "debug",
+        message: `Using fallback branch naming. client: ${!!client}, sessionId: ${sessionId}, startsWith-ses: ${sessionId?.startsWith("ses")}`,
+      },
+    });
   }
 
   // Fallback to deterministic naming
@@ -161,70 +221,106 @@ export async function generateBranchName(
 /**
  * Generate a branch name using AI inference
  *
+ * Creates an isolated ephemeral session to avoid blocking the user's
+ * conversation queue. The session is deleted after use.
+ *
  * @param context - Task context
  * @param client - OpenCode client for AI inference
- * @param sessionId - Session ID for the AI prompt
+ * @param _sessionId - Original session ID (unused, kept for API compatibility)
  * @returns Branch name result
  * @throws Error if AI call fails (caller should handle fallback)
  */
 export async function generateBranchNameWithAI(
   context: TaskContext,
   client: OpenCodeClient,
-  sessionId: string,
+  _sessionId: string,
 ): Promise<BranchNameResult> {
-  // Build the prompt with task context
-  const prompt = BRANCH_NAME_PROMPT.replace("{id}", context.id)
-    .replace("{title}", context.title)
-    .replace("{description}", context.description || "No description provided");
-
-  // Call the AI via OpenCode client
-  const response = await client.session.prompt({
-    path: { id: sessionId },
+  // Create an ephemeral session for AI branch naming
+  // This avoids blocking the user's main conversation queue
+  await client.app.log({
     body: {
-      parts: [{ type: "text", text: prompt }],
-      // Prefill helps the AI respond with JSON directly
-      assistant: { prefill: '{"type":"' },
+      service: "opencode-transmute",
+      level: "debug",
+      message: "Creating ephemeral session for AI branch naming...",
     },
   });
 
-  // Extract text from response
-  const textPart = response.parts?.find((p) => p.type === "text");
-  if (!textPart?.text) {
-    throw new Error("No text response from AI");
+  const ephemeralSession = await client.session.create({});
+  const ephemeralSessionId = ephemeralSession.id;
+
+  await client.app.log({
+    body: {
+      service: "opencode-transmute",
+      level: "debug",
+      message: `Ephemeral session created: ${ephemeralSessionId}`,
+    },
+  });
+
+  try {
+    // Build the prompt with task context
+    const prompt = BRANCH_NAME_PROMPT.replace("{id}", context.id)
+      .replace("{title}", context.title)
+      .replace(
+        "{description}",
+        context.description || "No description provided",
+      );
+
+    // Call the AI via OpenCode client using the ephemeral session
+    const response = await client.session.prompt({
+      path: { id: ephemeralSessionId },
+      body: {
+        parts: [{ type: "text", text: prompt }],
+        // Prefill helps the AI respond with JSON directly
+        assistant: { prefill: '{"type":"' },
+      },
+    });
+
+    // Extract text from response
+    const textPart = response.parts?.find((p) => p.type === "text");
+    if (!textPart?.text) {
+      throw new Error("No text response from AI");
+    }
+
+    // Try to extract JSON from the response
+    // The response might be:
+    // 1. A complete JSON object: {"type": "feat", "slug": "..."}
+    // 2. A continuation after prefill: feat", "slug": "..."} (when prefill is '{"type":"')
+    // 3. Wrapped in markdown: ```json\n{...}\n```
+
+    let jsonStr = textPart.text.trim();
+
+    // First, try to find a complete JSON object
+    const jsonMatch = jsonStr.match(/\{[\s\S]*?\}/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[0];
+    } else {
+      // No complete JSON found - might be a prefill continuation
+      // Try to reconstruct by prepending the prefill
+      jsonStr = '{"type":"' + jsonStr;
+      // Clean up potential double quotes or malformed JSON
+      jsonStr = jsonStr.replace(/""+/g, '"');
+    }
+
+    // Parse and validate with Zod
+    const parsed = JSON.parse(jsonStr);
+    const validated = branchAIResponseSchema.parse(parsed);
+
+    // Sanitize the slug
+    const sanitizedSlug = sanitizeBranchName(validated.slug, 40);
+
+    return {
+      branch: `${validated.type}/${sanitizedSlug}`,
+      type: validated.type,
+      slug: sanitizedSlug,
+    };
+  } finally {
+    // Always clean up the ephemeral session
+    try {
+      await client.session.delete({ path: { id: ephemeralSessionId } });
+    } catch {
+      // Ignore cleanup errors - session might already be expired
+    }
   }
-
-  // Try to extract JSON from the response
-  // The response might be:
-  // 1. A complete JSON object: {"type": "feat", "slug": "..."}
-  // 2. A continuation after prefill: feat", "slug": "..."} (when prefill is '{"type":"')
-  // 3. Wrapped in markdown: ```json\n{...}\n```
-
-  let jsonStr = textPart.text.trim();
-
-  // First, try to find a complete JSON object
-  const jsonMatch = jsonStr.match(/\{[\s\S]*?\}/);
-  if (jsonMatch) {
-    jsonStr = jsonMatch[0];
-  } else {
-    // No complete JSON found - might be a prefill continuation
-    // Try to reconstruct by prepending the prefill
-    jsonStr = '{"type":"' + jsonStr;
-    // Clean up potential double quotes or malformed JSON
-    jsonStr = jsonStr.replace(/""+/g, '"');
-  }
-
-  // Parse and validate with Zod
-  const parsed = JSON.parse(jsonStr);
-  const validated = branchAIResponseSchema.parse(parsed);
-
-  // Sanitize the slug
-  const sanitizedSlug = sanitizeBranchName(validated.slug, 40);
-
-  return {
-    branch: `${validated.type}/${sanitizedSlug}`,
-    type: validated.type,
-    slug: sanitizedSlug,
-  };
 }
 
 /**

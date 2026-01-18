@@ -2,13 +2,13 @@
  * Tests for WezTerm Terminal Adapter
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { WezTermAdapter, createWezTermAdapter } from "./wezterm";
 import type { ExecResult } from "../../core/exec";
 import {
-  TerminalNotAvailableError,
-  TerminalSpawnError,
-  InvalidPathError,
+  createTerminalNotAvailableError,
+  createTerminalSpawnError,
+  createInvalidPathError,
 } from "../../core/errors";
 
 // Helper to create a properly typed mock exec function
@@ -20,6 +20,16 @@ function createMockExec() {
 }
 
 describe("WezTermAdapter", () => {
+  let originalEnv: NodeJS.ProcessEnv;
+
+  beforeEach(() => {
+    originalEnv = { ...process.env };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
   describe("isAvailable", () => {
     it("should return true when wezterm is installed", async () => {
       const mockExec = createMockExec().mockResolvedValue({
@@ -120,6 +130,9 @@ describe("WezTermAdapter", () => {
     });
 
     it("should spawn a session with cwd", async () => {
+      // Mock environment variable to simulate NOT being in WezTerm
+      delete process.env.WEZTERM_PANE;
+
       // First call: isAvailable check
       mockExec.mockResolvedValueOnce({
         stdout: "wezterm 20230712\n",
@@ -143,7 +156,35 @@ describe("WezTermAdapter", () => {
       );
     });
 
-    it("should include title when provided", async () => {
+    it("should split a pane with cwd when inside WezTerm", async () => {
+      // Mock environment variable to simulate being in WezTerm
+      process.env.WEZTERM_PANE = "123";
+
+      // First call: isAvailable check
+      mockExec.mockResolvedValueOnce({
+        stdout: "wezterm 20230712\n",
+        stderr: "",
+        exitCode: 0,
+      });
+      // Second call: split-pane
+      mockExec.mockResolvedValueOnce({
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+      });
+
+      await adapter.openSession({ cwd: "/path/to/worktree" });
+
+      expect(mockExec).toHaveBeenCalledTimes(2);
+      expect(mockExec).toHaveBeenLastCalledWith(
+        "wezterm",
+        ["cli", "split-pane", "--right", "--cwd", "/path/to/worktree"],
+        { throwOnError: false },
+      );
+    });
+
+    it("should ignore title (WezTerm CLI does not support --pane-title)", async () => {
+      delete process.env.WEZTERM_PANE;
       mockExec.mockResolvedValueOnce({
         stdout: "wezterm 20230712\n",
         stderr: "",
@@ -160,21 +201,16 @@ describe("WezTermAdapter", () => {
         title: "My Task",
       });
 
+      // Title is not included in args because WezTerm CLI doesn't support it
       expect(mockExec).toHaveBeenLastCalledWith(
         "wezterm",
-        [
-          "cli",
-          "spawn",
-          "--cwd",
-          "/path/to/worktree",
-          "--pane-title",
-          "My Task",
-        ],
+        ["cli", "spawn", "--cwd", "/path/to/worktree"],
         { throwOnError: false },
       );
     });
 
     it("should execute commands when provided", async () => {
+      delete process.env.WEZTERM_PANE;
       mockExec.mockResolvedValueOnce({
         stdout: "wezterm 20230712\n",
         stderr: "",
@@ -201,13 +237,14 @@ describe("WezTermAdapter", () => {
           "--",
           "sh",
           "-c",
-          "pnpm install && pnpm dev",
+          "pnpm install && pnpm dev; exec $SHELL",
         ],
         { throwOnError: false },
       );
     });
 
-    it("should include all options together", async () => {
+    it("should include all options together (except title)", async () => {
+      delete process.env.WEZTERM_PANE;
       mockExec.mockResolvedValueOnce({
         stdout: "wezterm 20230712\n",
         stderr: "",
@@ -221,10 +258,11 @@ describe("WezTermAdapter", () => {
 
       await adapter.openSession({
         cwd: "/path/to/worktree",
-        title: "feat/add-login",
+        title: "feat/add-login", // ignored - WezTerm CLI doesn't support it
         commands: ["opencode --session abc123"],
       });
 
+      // Note: --pane-title is NOT included because WezTerm CLI doesn't support it
       expect(mockExec).toHaveBeenLastCalledWith(
         "wezterm",
         [
@@ -232,12 +270,10 @@ describe("WezTermAdapter", () => {
           "spawn",
           "--cwd",
           "/path/to/worktree",
-          "--pane-title",
-          "feat/add-login",
           "--",
           "sh",
           "-c",
-          "opencode --session abc123",
+          "opencode --session abc123; exec $SHELL",
         ],
         { throwOnError: false },
       );
@@ -252,10 +288,11 @@ describe("WezTermAdapter", () => {
 
       await expect(
         adapter.openSession({ cwd: "/path/to/worktree" }),
-      ).rejects.toThrow(TerminalNotAvailableError);
+      ).rejects.toMatchObject({ code: "NOT_AVAILABLE" });
     });
 
     it("should throw InvalidPathError when path does not exist", async () => {
+      delete process.env.WEZTERM_PANE;
       mockExec.mockResolvedValueOnce({
         stdout: "wezterm 20230712\n",
         stderr: "",
@@ -269,10 +306,11 @@ describe("WezTermAdapter", () => {
 
       await expect(
         adapter.openSession({ cwd: "/nonexistent/path" }),
-      ).rejects.toThrow(InvalidPathError);
+      ).rejects.toMatchObject({ code: "INVALID_PATH" });
     });
 
     it("should throw TerminalSpawnError for other spawn failures", async () => {
+      delete process.env.WEZTERM_PANE;
       mockExec.mockResolvedValueOnce({
         stdout: "wezterm 20230712\n",
         stderr: "",
@@ -286,10 +324,11 @@ describe("WezTermAdapter", () => {
 
       await expect(
         adapter.openSession({ cwd: "/path/to/worktree" }),
-      ).rejects.toThrow(TerminalSpawnError);
+      ).rejects.toMatchObject({ code: "SPAWN_FAILED" });
     });
 
     it("should wrap unexpected errors in TerminalSpawnError", async () => {
+      delete process.env.WEZTERM_PANE;
       mockExec.mockResolvedValueOnce({
         stdout: "wezterm 20230712\n",
         stderr: "",
@@ -299,7 +338,7 @@ describe("WezTermAdapter", () => {
 
       await expect(
         adapter.openSession({ cwd: "/path/to/worktree" }),
-      ).rejects.toThrow(TerminalSpawnError);
+      ).rejects.toMatchObject({ code: "SPAWN_FAILED" });
     });
   });
 
@@ -327,10 +366,10 @@ describe("WezTermAdapter", () => {
   });
 });
 
-describe("Terminal error classes", () => {
-  describe("TerminalNotAvailableError", () => {
+describe("Terminal error factory functions", () => {
+  describe("createTerminalNotAvailableError", () => {
     it("should include terminal name in message", () => {
-      const error = new TerminalNotAvailableError("wezterm");
+      const error = createTerminalNotAvailableError("wezterm");
 
       expect(error.message).toContain("wezterm");
       expect(error.message).toContain("not available");
@@ -339,9 +378,9 @@ describe("Terminal error classes", () => {
     });
   });
 
-  describe("TerminalSpawnError", () => {
+  describe("createTerminalSpawnError", () => {
     it("should include terminal name and reason in message", () => {
-      const error = new TerminalSpawnError("wezterm", "Connection refused");
+      const error = createTerminalSpawnError("wezterm", "Connection refused");
 
       expect(error.message).toContain("wezterm");
       expect(error.message).toContain("Connection refused");
@@ -351,9 +390,9 @@ describe("Terminal error classes", () => {
     });
   });
 
-  describe("InvalidPathError", () => {
+  describe("createInvalidPathError", () => {
     it("should include path in message", () => {
-      const error = new InvalidPathError("/nonexistent/path");
+      const error = createInvalidPathError("/nonexistent/path");
 
       expect(error.message).toContain("/nonexistent/path");
       expect(error.path).toBe("/nonexistent/path");

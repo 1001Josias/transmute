@@ -10,9 +10,9 @@ import {
 } from "./worktree";
 import * as execModule from "./exec";
 import {
-  BranchAlreadyExistsError,
-  DirectoryAlreadyExistsError,
-  BaseBranchNotFoundError,
+  createBranchAlreadyExistsError as _createBranchAlreadyExistsError,
+  createDirectoryAlreadyExistsError as _createDirectoryAlreadyExistsError,
+  createBaseBranchNotFoundError as _createBaseBranchNotFoundError,
 } from "./errors";
 import * as fs from "node:fs/promises";
 
@@ -274,9 +274,9 @@ branch refs/heads/feat/existing
       return { stdout: "", stderr: "", exitCode: 0 };
     });
 
-    await expect(createWorktree({ branch: "feat/existing" })).rejects.toThrow(
-      BranchAlreadyExistsError,
-    );
+    await expect(
+      createWorktree({ branch: "feat/existing" }),
+    ).rejects.toMatchObject({ code: "BRANCH_EXISTS" });
   });
 
   it("throws DirectoryAlreadyExistsError when directory exists", async () => {
@@ -285,9 +285,9 @@ branch refs/heads/feat/existing
     });
     vi.mocked(fs.access).mockResolvedValue(undefined); // Directory exists
 
-    await expect(createWorktree({ branch: "feat/new" })).rejects.toThrow(
-      DirectoryAlreadyExistsError,
-    );
+    await expect(createWorktree({ branch: "feat/new" })).rejects.toMatchObject({
+      code: "DIR_EXISTS",
+    });
   });
 
   it("throws BaseBranchNotFoundError when base branch missing", async () => {
@@ -295,7 +295,7 @@ branch refs/heads/feat/existing
 
     await expect(
       createWorktree({ branch: "feat/new", baseBranch: "nonexistent" }),
-    ).rejects.toThrow(BaseBranchNotFoundError);
+    ).rejects.toMatchObject({ code: "BASE_NOT_FOUND" });
   });
 
   it("uses default baseBranch 'main' when not specified", async () => {

@@ -175,12 +175,13 @@ describe("startTask", () => {
         title: "Some task",
       };
 
-      await expect(
-        startTask(input, tempDir, {
-          openTerminal: false,
-          runHooks: false,
-        }),
-      ).rejects.toThrow("opencodeSessionId is required");
+      const result = await startTask(input, tempDir, {
+        openTerminal: false,
+        runHooks: false,
+      });
+
+      expect(result.status).toBe("failed");
+      expect(result.message).toContain("opencodeSessionId is required");
     });
 
     it("should execute hooks when runHooks is true", async () => {
@@ -201,7 +202,7 @@ describe("startTask", () => {
       // Check that hook was executed
       const { stat } = await import("node:fs/promises");
       const hookFileExists = await stat(
-        join(result.worktreePath, "hook-executed.txt"),
+        join(result.worktreePath!, "hook-executed.txt"),
       )
         .then(() => true)
         .catch(() => false);
