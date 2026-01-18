@@ -2,7 +2,7 @@
 project_id: opencode-transmute
 prd_version: "1.0"
 created_at: "2026-01-17"
-updated_at: "2026-01-17"
+updated_at: "2026-01-18"
 ---
 
 # Tasks: OpenCode Transmute Plugin
@@ -270,18 +270,20 @@ Cobrir casos com vitest:
 ## Task 5: Adapter - WezTerm Integration
 
 - **id:** oc-trans-005
-- **status:** todo
+- **status:** done
 - **priority:** high
 - **description:** Implementar integração com WezTerm para abrir sessões de terminal.
 - **dependencies:** oc-trans-001
 
 ### Subtasks
 
-#### [ ] Definir interface abstrata de terminal
+#### [x] Definir interface abstrata de terminal
+
+Interface já definida em `types.ts`:
 
 ```typescript
-// apps/opencode-transmute/src/adapters/terminal/types.ts
 interface TerminalAdapter {
+  name: string;
   isAvailable(): Promise<boolean>;
   openSession(options: OpenSessionOptions): Promise<void>;
 }
@@ -290,31 +292,38 @@ interface OpenSessionOptions {
   cwd: string;
   commands?: string[];
   title?: string;
+  env?: Record<string, string>;
 }
 ```
 
-#### [ ] Verificar disponibilidade do WezTerm
+#### [x] Verificar disponibilidade do WezTerm
 
-Checar se `wezterm` está no PATH.
+Implementado `isAvailable()` que executa `wezterm --version` e verifica exit code.
 
-#### [ ] Implementar openSession para WezTerm
+#### [x] Implementar openSession para WezTerm
 
-Usar `wezterm cli spawn --cwd <path>` para abrir nova pane/tab.
-Opcionalmente executar comandos iniciais.
+Implementado usando `wezterm cli spawn --cwd <path>`:
 
-#### [ ] Tratamento de erros
+- Suporta `--pane-title` para definir título
+- Suporta execução de comandos via `sh -c`
+- Verifica disponibilidade antes de abrir
 
-- WezTerm não instalado
-- Falha ao abrir sessão
-- Path inválido
+#### [x] Tratamento de erros
 
-#### [ ] Adicionar testes unitários
+Novas classes de erro em `errors.ts`:
 
-Cobrir casos com vitest (mockando execução de comandos):
+- `TerminalNotAvailableError` - WezTerm não instalado
+- `TerminalSpawnError` - Falha ao abrir sessão
+- `InvalidPathError` - Path inválido
 
-- `isAvailable`: retorna true quando wezterm está no PATH, false caso contrário
-- `openSession`: constrói comando correto com cwd e title
-- Erros: WezTerm não instalado, path inválido
+#### [x] Adicionar testes unitários
+
+21 testes criados em `wezterm.test.ts` cobrindo:
+
+- `isAvailable`: true quando wezterm disponível, false caso contrário
+- `getVersion`: extrai versão do output
+- `openSession`: constrói comando correto com cwd, title e commands
+- Erros: TerminalNotAvailableError, InvalidPathError, TerminalSpawnError
 
 ---
 
