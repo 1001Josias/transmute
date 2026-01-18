@@ -108,16 +108,22 @@ describe("generateFallbackBranchName", () => {
 
 describe("generateBranchNameWithAI", () => {
   let mockClient: OpenCodeClient;
+  const TEMP_SESSION_ID = "temp-session-id";
 
   beforeEach(() => {
     mockClient = {
+      app: {
+        log: vi.fn(),
+      },
       session: {
+        create: vi.fn().mockResolvedValue({ id: TEMP_SESSION_ID }),
+        delete: vi.fn().mockResolvedValue(undefined),
         prompt: vi.fn(),
       },
     };
   });
 
-  it("returns valid result from AI", async () => {
+  it("returns valid result from AI using temp session", async () => {
     vi.mocked(mockClient.session.prompt).mockResolvedValueOnce({
       parts: [
         { type: "text", text: '{"type": "feat", "slug": "add-oauth-login"}' },
@@ -129,6 +135,16 @@ describe("generateBranchNameWithAI", () => {
       mockClient,
       "session-1",
     );
+
+    expect(mockClient.session.create).toHaveBeenCalled();
+    expect(mockClient.session.prompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: { id: TEMP_SESSION_ID }, // Should use temp session
+      }),
+    );
+    expect(mockClient.session.delete).toHaveBeenCalledWith({
+      path: { id: TEMP_SESSION_ID },
+    });
 
     expect(result.type).toBe("feat");
     expect(result.slug).toBe("add-oauth-login");
@@ -203,6 +219,9 @@ describe("generateBranchNameWithAI", () => {
         "session-1",
       ),
     ).rejects.toThrow("No text response from AI");
+    
+    // Should still cleanup
+    expect(mockClient.session.delete).toHaveBeenCalled();
   });
 
   it("throws error when response cannot be parsed as JSON", async () => {
@@ -251,8 +270,9 @@ describe("generateBranchNameWithAI", () => {
       "session-abc",
     );
 
+    expect(mockClient.session.create).toHaveBeenCalled();
     expect(mockClient.session.prompt).toHaveBeenCalledWith({
-      path: { id: "session-abc" },
+      path: { id: TEMP_SESSION_ID },
       body: {
         parts: [
           {
@@ -275,7 +295,12 @@ describe("generateBranchName", () => {
 
   beforeEach(() => {
     mockClient = {
+      app: {
+        log: vi.fn(),
+      },
       session: {
+        create: vi.fn().mockResolvedValue({ id: "temp-session" }),
+        delete: vi.fn().mockResolvedValue(undefined),
         prompt: vi.fn(),
       },
     };
@@ -344,9 +369,13 @@ describe("generateBranchName", () => {
 
     expect(result.type).toBe("fix");
     expect(result.branch).toMatch(/^fix\/task-1/);
-    expect(warnSpy).toHaveBeenCalledWith(
-      "[transmute] AI branch naming failed, using fallback:",
-      expect.any(Error),
+    expect(mockClient.app.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          level: "warn",
+          message: expect.stringContaining("AI branch naming failed"),
+        }),
+      }),
     );
 
     warnSpy.mockRestore();
@@ -366,7 +395,15 @@ describe("generateBranchName", () => {
     );
 
     expect(result.branch).toBe("feat/task-1-add-feature");
-    expect(warnSpy).toHaveBeenCalled();
+    expect(result.branch).toBe("feat/task-1-add-feature");
+    expect(mockClient.app.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          level: "warn",
+          message: expect.stringContaining("AI branch naming failed"),
+        }),
+      }),
+    );
 
     warnSpy.mockRestore();
   });

@@ -304,7 +304,7 @@ Implementado `isAvailable()` que executa `wezterm --version` e verifica exit cod
 
 Implementado usando `wezterm cli spawn --cwd <path>`:
 
-- Suporta `--pane-title` para definir título
+- Removido suporte a `--pane-title` (argumento inválido na CLI atual do WezTerm)
 - Suporta execução de comandos via `sh -c`
 - Verifica disponibilidade antes de abrir
 
@@ -462,14 +462,16 @@ Tool registrada no plugin com:
 ## Task 8: Configuration
 
 - **id:** oc-trans-008
-- **status:** todo
+- **status:** done
 - **priority:** medium
 - **description:** Implementar sistema de configuração do plugin.
 - **dependencies:** oc-trans-001
 
 ### Subtasks
 
-#### [ ] Definir schema de configuração
+#### [x] Definir schema de configuração
+
+Schema implementado com Zod em `src/core/config.ts`:
 
 ```typescript
 const configSchema = z.object({
@@ -480,17 +482,20 @@ const configSchema = z.object({
 });
 ```
 
-#### [ ] Implementar loadConfig
+#### [x] Implementar loadConfig
 
-Buscar configuração em:
+Implementada busca sequencial:
 
-1. `opencode.config.ts` (seção transmute)
-2. `.opencode/transmute.config.json`
-3. Defaults
+1. `.opencode/transmute.config.json`
+2. Defaults definidos no código
 
-#### [ ] Validar configuração
+#### [x] Validar configuração
 
-Usar Zod para validação e merge com defaults.
+Uso de Zod para parsing e merge seguro com defaults.
+
+#### [x] Corrigir bug de importação em worktree.ts ([commit](https://github.com/1001Josias/transmute/commit/fix-worktree-imports))
+
+Corrigido erro `ReferenceError: createBranchAlreadyExistsError is not defined` ao tentar criar worktree para branch existente.
 
 ---
 

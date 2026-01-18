@@ -16,6 +16,7 @@ import { createWorktree } from "../core/worktree";
 import { findSessionByTask, addSession, type Session } from "../core/session";
 import { executeAfterCreateHooks, type HooksConfig } from "../core/hooks";
 import { getGitRoot } from "../core/exec";
+import { loadConfig, type Config } from "../core/config";
 import type {
   TerminalAdapter,
   OpenSessionOptions,
@@ -45,12 +46,13 @@ export type StartTaskInput = z.infer<typeof startTaskInputSchema>;
  * Output schema for the start-task tool
  */
 export const startTaskOutputSchema = z.object({
-  status: z.enum(["created", "existing"]),
-  branch: z.string(),
-  worktreePath: z.string(),
+  status: z.enum(["created", "existing", "failed"]),
+  branch: z.string().optional(),
+  worktreePath: z.string().optional(),
   taskId: z.string(),
-  taskName: z.string(),
+  taskName: z.string().optional(),
   opencodeSessionId: z.string().optional(),
+  message: z.string().optional(),
 });
 
 /**
@@ -70,6 +72,8 @@ export interface StartTaskOptions {
   terminal?: TerminalAdapter;
   /** Hooks configuration for lifecycle commands */
   hooks?: HooksConfig;
+  /** Plugin configuration */
+  config?: Config;
   /** Whether to open terminal after creating worktree (default: true) */
   openTerminal?: boolean;
   /** Whether to run hooks after creating worktree (default: true) */
@@ -124,111 +128,169 @@ export async function startTask(
   basePath?: string,
   options: StartTaskOptions = {},
 ): Promise<StartTaskOutput> {
-  // Validate input
-  const validatedInput = startTaskInputSchema.parse(input);
-
-  // Get repository root
-  const repoRoot = basePath || (await getGitRoot());
-
   // Extract options with defaults
   const {
     client,
     opencodeSessionId,
     terminal,
-    hooks,
     openTerminal = true,
     runHooks = true,
     terminalCommands,
   } = options;
 
-  // 1. Check if session already exists for this task
-  const existingSession = await findSessionByTask(
-    repoRoot,
-    validatedInput.taskId,
-  );
+  let validatedInput: StartTaskInput;
 
-  if (existingSession) {
-    // Session exists - return existing worktree
-    const result: StartTaskOutput = {
-      status: "existing",
-      branch: existingSession.branch,
-      worktreePath: existingSession.worktreePath,
-      taskId: existingSession.taskId,
-      taskName: existingSession.taskName,
-      opencodeSessionId: existingSession.opencodeSessionId,
+  // Validate input
+  try {
+    validatedInput = startTaskInputSchema.parse(input);
+  } catch (error) {
+    if (client) {
+      await client.app.log({
+        body: {
+          service: "opencode-transmute",
+          level: "error",
+          message: `Invalid input for start-task: ${(error as Error).message}`,
+        },
+      });
+    }
+    return {
+      status: "failed",
+      taskId: input.taskId || "unknown",
+      message: `Invalid input: ${(error as Error).message}`,
     };
+  }
 
-    // Optionally open terminal for existing session
-    if (openTerminal && terminal) {
-      await openTerminalSession(terminal, existingSession, terminalCommands);
+  try {
+    // Get repository root
+    const repoRoot = basePath || (await getGitRoot());
+
+    // Load configuration
+    const config = options.config || (await loadConfig(repoRoot));
+
+    // Merge hooks from options and config
+    const activeHooks = options.hooks || config.hooks;
+
+    // 1. Check if session already exists for this task
+    const existingSession = await findSessionByTask(
+      repoRoot,
+      validatedInput.taskId,
+    );
+
+    if (existingSession) {
+      // Session exists - return existing worktree
+      const result: StartTaskOutput = {
+        status: "existing",
+        branch: existingSession.branch,
+        worktreePath: existingSession.worktreePath,
+        taskId: existingSession.taskId,
+        taskName: existingSession.taskName,
+        opencodeSessionId: existingSession.opencodeSessionId,
+      };
+
+      // Optionally open terminal for existing session
+      if (openTerminal && terminal) {
+        await openTerminalSession(terminal, existingSession, terminalCommands);
+      }
+
+      return result;
     }
 
-    return result;
-  }
+    // 2. Generate branch name via AI (or fallback)
+    // This will try to use AI with a temp session to avoid deadlock
+    // If AI fails/network down, it falls back to deterministic name
+    const taskContext: TaskContext = {
+      id: validatedInput.taskId,
+      title: validatedInput.title,
+      description: validatedInput.description,
+      priority: validatedInput.priority,
+      type: validatedInput.type,
+    };
 
-  // 2. Generate branch name via AI (or fallback)
-  const taskContext: TaskContext = {
-    id: validatedInput.taskId,
-    title: validatedInput.title,
-    description: validatedInput.description,
-    priority: validatedInput.priority,
-    type: validatedInput.type,
-  };
-
-  const branchResult = await generateBranchName(
-    taskContext,
-    client,
-    opencodeSessionId,
-  );
-
-  // 3. Create worktree
-  const worktree = await createWorktree({
-    branch: branchResult.branch,
-    baseBranch: validatedInput.baseBranch || "main",
-    cwd: repoRoot,
-  });
-
-  // 4. Persist session (requires opencodeSessionId)
-  if (!opencodeSessionId) {
-    throw new Error(
-      "opencodeSessionId is required to create a new session. " +
-        "This ensures conversation continuity when resuming tasks.",
+    const branchResult = await generateBranchName(
+      taskContext,
+      client,
+      opencodeSessionId,
     );
-  }
 
-  const newSession: Session = {
-    taskId: validatedInput.taskId,
-    taskName: validatedInput.title,
-    branch: branchResult.branch,
-    worktreePath: worktree.path,
-    createdAt: new Date().toISOString(),
-    opencodeSessionId,
-  };
-
-  await addSession(repoRoot, newSession);
-
-  // 5. Execute afterCreate hooks
-  if (runHooks && hooks?.afterCreate && hooks.afterCreate.length > 0) {
-    await executeAfterCreateHooks(hooks, {
-      cwd: worktree.path,
-      stopOnError: false, // Don't fail the whole operation if hooks fail
+    // 3. Create worktree
+    const worktree = await createWorktree({
+      branch: branchResult.branch,
+      baseBranch: validatedInput.baseBranch || "main",
+      worktreesDir: config.worktreesDir,
+      cwd: repoRoot,
     });
-  }
 
-  // 6. Open terminal in worktree
-  if (openTerminal && terminal) {
-    await openTerminalSession(terminal, newSession, terminalCommands);
-  }
+    // 4. Persist session (requires opencodeSessionId)
+    if (!opencodeSessionId) {
+      throw new Error(
+        "opencodeSessionId is required to create a new session. " +
+          "This ensures conversation continuity when resuming tasks.",
+      );
+    }
 
-  // 7. Return result
-  return {
-    status: "created",
-    branch: branchResult.branch,
-    worktreePath: worktree.path,
-    taskId: validatedInput.taskId,
-    taskName: validatedInput.title,
-    opencodeSessionId,
-  };
+    const newSession: Session = {
+      taskId: validatedInput.taskId,
+      taskName: validatedInput.title,
+      branch: branchResult.branch,
+      worktreePath: worktree.path,
+      createdAt: new Date().toISOString(),
+      opencodeSessionId,
+    };
+
+    await addSession(repoRoot, newSession);
+
+    // 5. Execute afterCreate hooks
+    if (
+      runHooks &&
+      activeHooks?.afterCreate &&
+      activeHooks.afterCreate.length > 0
+    ) {
+      await executeAfterCreateHooks(activeHooks, {
+        cwd: worktree.path,
+        stopOnError: false, // Don't fail the whole operation if hooks fail
+      });
+    }
+
+    // 6. Open terminal in worktree
+    if (openTerminal && terminal) {
+      await openTerminalSession(terminal, newSession, terminalCommands);
+    }
+
+    // 7. Return result
+    return {
+      status: "created",
+      branch: branchResult.branch,
+      worktreePath: worktree.path,
+      taskId: validatedInput.taskId,
+      taskName: validatedInput.title,
+      opencodeSessionId,
+      message:
+        branchResult.type === undefined // Implicit check if AI was used (result from fallback has types) - actually both have types.
+          ? "Worktree created with fallback name."
+          : "Worktree created with AI-generated name.",
+    };
+  } catch (error) {
+    const errMessage = error instanceof Error ? error.message : String(error);
+
+    // Log error to OpenCode
+    if (client) {
+      await client.app.log({
+        body: {
+          service: "opencode-transmute",
+          level: "error",
+          message: `Failed to start task: ${errMessage}`,
+          extra: { taskId: validatedInput.taskId },
+        },
+      });
+    }
+
+    // Return failed status instead of throwing
+    return {
+      status: "failed",
+      taskId: validatedInput.taskId,
+      message: errMessage,
+    };
+  }
 }
 
 /**

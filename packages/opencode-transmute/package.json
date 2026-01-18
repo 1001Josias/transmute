@@ -20,7 +20,8 @@
     "build": "unbuild",
     "dev": "unbuild --stub",
     "lint": "eslint .",
-    "test": "vitest"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "opencode",

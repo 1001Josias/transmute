@@ -11,9 +11,9 @@ import { mkdir, access, constants } from "node:fs/promises";
 import { join } from "node:path";
 import { gitExec, getGitRoot, branchExists as checkBranchExists } from "./exec";
 import {
-  BranchAlreadyExistsError,
-  DirectoryAlreadyExistsError,
-  BaseBranchNotFoundError,
+  createBranchAlreadyExistsError,
+  createDirectoryAlreadyExistsError,
+  createBaseBranchNotFoundError,
 } from "./errors";
 
 /**
@@ -40,6 +40,8 @@ export interface CreateWorktreeOptions {
   baseBranch?: string;
   /** Target directory for the worktree (default: "./worktrees/<branch>") */
   targetDir?: string;
+  /** Base directory for worktrees (default: "worktrees") */
+  worktreesDir?: string;
   /** Working directory (repository root) */
   cwd?: string;
 }
@@ -55,6 +57,7 @@ export const createWorktreeOptionsSchema = z.object({
   branch: z.string().min(1),
   baseBranch: z.string().optional(),
   targetDir: z.string().optional(),
+  worktreesDir: z.string().optional(),
   cwd: z.string().optional(),
 });
 
@@ -181,7 +184,8 @@ export async function createWorktree(
   // Convert branch name to a valid directory name (replace / with -)
   const branchSlug = branch.replace(/\//g, "-");
   const targetDir =
-    validated.targetDir || join(gitRoot, "worktrees", branchSlug);
+    validated.targetDir ||
+    join(gitRoot, validated.worktreesDir || "worktrees", branchSlug);
 
   // Check if branch already exists
   const branchExistsLocally = await checkBranchExists(branch, cwd);
@@ -193,7 +197,7 @@ export async function createWorktree(
       (wt) => wt.branch === branch,
     );
     if (existingWorktree) {
-      throw new BranchAlreadyExistsError(branch);
+      throw createBranchAlreadyExistsError(branch);
     }
   }
 
@@ -201,7 +205,7 @@ export async function createWorktree(
   try {
     await access(targetDir, constants.F_OK);
     // If we get here, the directory exists
-    throw new DirectoryAlreadyExistsError(targetDir);
+    throw createDirectoryAlreadyExistsError(targetDir);
   } catch (err) {
     // Directory doesn't exist - this is what we want
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -212,7 +216,7 @@ export async function createWorktree(
   // Check if base branch exists
   const baseExists = await checkBranchExists(baseBranch, cwd);
   if (!baseExists) {
-    throw new BaseBranchNotFoundError(baseBranch);
+    throw createBaseBranchNotFoundError(baseBranch);
   }
 
   // Create parent directory if it doesn't exist

@@ -6,5 +6,8 @@ export default defineBuildConfig({
   clean: true,
   rollup: {
     emitCJS: true,
+    esbuild: {
+      target: "es2022",
+    },
   },
 });

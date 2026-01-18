@@ -6,9 +6,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { WezTermAdapter, createWezTermAdapter } from "./wezterm";
 import type { ExecResult } from "../../core/exec";
 import {
-  TerminalNotAvailableError,
-  TerminalSpawnError,
-  InvalidPathError,
+  createTerminalNotAvailableError,
+  createTerminalSpawnError,
+  createInvalidPathError,
 } from "../../core/errors";
 
 // Helper to create a properly typed mock exec function
@@ -23,7 +23,7 @@ describe("WezTermAdapter", () => {
   describe("isAvailable", () => {
     it("should return true when wezterm is installed", async () => {
       const mockExec = createMockExec().mockResolvedValue({
-        stdout: "wezterm 20230712-072601-f4abf8fd\n",
+        stdout: "wezterm 20240203-110809-5046fc22\n",
         stderr: "",
         exitCode: 0,
       });
@@ -63,7 +63,7 @@ describe("WezTermAdapter", () => {
   describe("getVersion", () => {
     it("should return version string when wezterm is available", async () => {
       const mockExec = createMockExec().mockResolvedValue({
-        stdout: "wezterm 20230712-072601-f4abf8fd\n",
+        stdout: "wezterm 20240203-110809-5046fc22\n",
         stderr: "",
         exitCode: 0,
       });
@@ -71,7 +71,7 @@ describe("WezTermAdapter", () => {
       const adapter = new WezTermAdapter({ execFn: mockExec });
       const version = await adapter.getVersion();
 
-      expect(version).toBe("20230712-072601-f4abf8fd");
+      expect(version).toBe("20240203-110809-5046fc22");
     });
 
     it("should handle version output without 'wezterm' prefix", async () => {
@@ -122,7 +122,7 @@ describe("WezTermAdapter", () => {
     it("should spawn a session with cwd", async () => {
       // First call: isAvailable check
       mockExec.mockResolvedValueOnce({
-        stdout: "wezterm 20230712\n",
+        stdout: "wezterm 20240203\n",
         stderr: "",
         exitCode: 0,
       });
@@ -143,9 +143,9 @@ describe("WezTermAdapter", () => {
       );
     });
 
-    it("should include title when provided", async () => {
+    it("should NOT include title since it is not supported in cli spawn", async () => {
       mockExec.mockResolvedValueOnce({
-        stdout: "wezterm 20230712\n",
+        stdout: "wezterm 20240203\n",
         stderr: "",
         exitCode: 0,
       });
@@ -162,21 +162,14 @@ describe("WezTermAdapter", () => {
 
       expect(mockExec).toHaveBeenLastCalledWith(
         "wezterm",
-        [
-          "cli",
-          "spawn",
-          "--cwd",
-          "/path/to/worktree",
-          "--pane-title",
-          "My Task",
-        ],
+        ["cli", "spawn", "--cwd", "/path/to/worktree"],
         { throwOnError: false },
       );
     });
 
     it("should execute commands when provided", async () => {
       mockExec.mockResolvedValueOnce({
-        stdout: "wezterm 20230712\n",
+        stdout: "wezterm 20240203\n",
         stderr: "",
         exitCode: 0,
       });
@@ -207,42 +200,6 @@ describe("WezTermAdapter", () => {
       );
     });
 
-    it("should include all options together", async () => {
-      mockExec.mockResolvedValueOnce({
-        stdout: "wezterm 20230712\n",
-        stderr: "",
-        exitCode: 0,
-      });
-      mockExec.mockResolvedValueOnce({
-        stdout: "",
-        stderr: "",
-        exitCode: 0,
-      });
-
-      await adapter.openSession({
-        cwd: "/path/to/worktree",
-        title: "feat/add-login",
-        commands: ["opencode --session abc123"],
-      });
-
-      expect(mockExec).toHaveBeenLastCalledWith(
-        "wezterm",
-        [
-          "cli",
-          "spawn",
-          "--cwd",
-          "/path/to/worktree",
-          "--pane-title",
-          "feat/add-login",
-          "--",
-          "sh",
-          "-c",
-          "opencode --session abc123",
-        ],
-        { throwOnError: false },
-      );
-    });
-
     it("should throw TerminalNotAvailableError when wezterm is not installed", async () => {
       mockExec.mockResolvedValueOnce({
         stdout: "",
@@ -252,12 +209,14 @@ describe("WezTermAdapter", () => {
 
       await expect(
         adapter.openSession({ cwd: "/path/to/worktree" }),
-      ).rejects.toThrow(TerminalNotAvailableError);
+      ).rejects.toMatchObject({
+        code: "NOT_AVAILABLE",
+      });
     });
 
     it("should throw InvalidPathError when path does not exist", async () => {
       mockExec.mockResolvedValueOnce({
-        stdout: "wezterm 20230712\n",
+        stdout: "wezterm 20240203\n",
         stderr: "",
         exitCode: 0,
       });
@@ -269,12 +228,14 @@ describe("WezTermAdapter", () => {
 
       await expect(
         adapter.openSession({ cwd: "/nonexistent/path" }),
-      ).rejects.toThrow(InvalidPathError);
+      ).rejects.toMatchObject({
+        code: "INVALID_PATH",
+      });
     });
 
     it("should throw TerminalSpawnError for other spawn failures", async () => {
       mockExec.mockResolvedValueOnce({
-        stdout: "wezterm 20230712\n",
+        stdout: "wezterm 20240203\n",
         stderr: "",
         exitCode: 0,
       });
@@ -286,12 +247,14 @@ describe("WezTermAdapter", () => {
 
       await expect(
         adapter.openSession({ cwd: "/path/to/worktree" }),
-      ).rejects.toThrow(TerminalSpawnError);
+      ).rejects.toMatchObject({
+        code: "SPAWN_FAILED",
+      });
     });
 
     it("should wrap unexpected errors in TerminalSpawnError", async () => {
       mockExec.mockResolvedValueOnce({
-        stdout: "wezterm 20230712\n",
+        stdout: "wezterm 20240203\n",
         stderr: "",
         exitCode: 0,
       });
@@ -299,7 +262,9 @@ describe("WezTermAdapter", () => {
 
       await expect(
         adapter.openSession({ cwd: "/path/to/worktree" }),
-      ).rejects.toThrow(TerminalSpawnError);
+      ).rejects.toMatchObject({
+        code: "SPAWN_FAILED",
+      });
     });
   });
 
@@ -327,10 +292,10 @@ describe("WezTermAdapter", () => {
   });
 });
 
-describe("Terminal error classes", () => {
-  describe("TerminalNotAvailableError", () => {
+describe("Terminal error factory functions", () => {
+  describe("createTerminalNotAvailableError", () => {
     it("should include terminal name in message", () => {
-      const error = new TerminalNotAvailableError("wezterm");
+      const error = createTerminalNotAvailableError("wezterm");
 
       expect(error.message).toContain("wezterm");
       expect(error.message).toContain("not available");
@@ -339,9 +304,9 @@ describe("Terminal error classes", () => {
     });
   });
 
-  describe("TerminalSpawnError", () => {
+  describe("createTerminalSpawnError", () => {
     it("should include terminal name and reason in message", () => {
-      const error = new TerminalSpawnError("wezterm", "Connection refused");
+      const error = createTerminalSpawnError("wezterm", "Connection refused");
 
       expect(error.message).toContain("wezterm");
       expect(error.message).toContain("Connection refused");
@@ -351,9 +316,9 @@ describe("Terminal error classes", () => {
     });
   });
 
-  describe("InvalidPathError", () => {
+  describe("createInvalidPathError", () => {
     it("should include path in message", () => {
-      const error = new InvalidPathError("/nonexistent/path");
+      const error = createInvalidPathError("/nonexistent/path");
 
       expect(error.message).toContain("/nonexistent/path");
       expect(error.path).toBe("/nonexistent/path");

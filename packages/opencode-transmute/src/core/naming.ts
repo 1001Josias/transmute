@@ -12,7 +12,24 @@ import { z } from "zod";
  * Only includes the session.prompt method needed for AI inference.
  */
 export interface OpenCodeClient {
+  app: {
+    log(options: {
+      body: {
+        service?: string;
+        level: "debug" | "info" | "warn" | "error";
+        message: string;
+        extra?: Record<string, any>;
+      };
+    }): Promise<void>;
+  };
   session: {
+    create(options?: {
+      body?: {
+        workspace?: string;
+        project?: string;
+      };
+    }): Promise<{ id: string }>;
+    delete(options: { path: { id: string } }): Promise<void>;
     prompt(options: {
       path: { id: string };
       body: {
@@ -147,10 +164,15 @@ export async function generateBranchName(
     try {
       return await generateBranchNameWithAI(context, client, sessionId);
     } catch (error) {
-      console.warn(
-        "[transmute] AI branch naming failed, using fallback:",
-        error,
-      );
+      if (client.app) {
+        await client.app.log({
+          body: {
+            service: "opencode-transmute",
+            level: "warn",
+            message: `AI branch naming failed, using fallback: ${(error as Error).message}`,
+          },
+        });
+      }
     }
   }
 
@@ -170,22 +192,38 @@ export async function generateBranchName(
 export async function generateBranchNameWithAI(
   context: TaskContext,
   client: OpenCodeClient,
-  sessionId: string,
+  sessionId?: string, // Kept for backward compat but unused for prompting to avoid deadlock
 ): Promise<BranchNameResult> {
   // Build the prompt with task context
   const prompt = BRANCH_NAME_PROMPT.replace("{id}", context.id)
     .replace("{title}", context.title)
     .replace("{description}", context.description || "No description provided");
 
-  // Call the AI via OpenCode client
-  const response = await client.session.prompt({
-    path: { id: sessionId },
-    body: {
-      parts: [{ type: "text", text: prompt }],
-      // Prefill helps the AI respond with JSON directly
-      assistant: { prefill: '{"type":"' },
-    },
-  });
+  // Create a temporary session to avoid deadlock with the main session
+  const tempSession = await client.session.create();
+  let response;
+
+  try {
+    // Call the AI via OpenCode client using the TEMPORARY session
+    response = await client.session.prompt({
+      path: { id: tempSession.id },
+      body: {
+        parts: [{ type: "text", text: prompt }],
+        // Prefill helps the AI respond with JSON directly
+        assistant: { prefill: '{"type":"' },
+      },
+    });
+  } finally {
+    // Clean up the temporary session
+    try {
+      await client.session.delete({ path: { id: tempSession.id } });
+    } catch (e) {
+      if (client.app) {
+        // Log silently/warn
+        console.warn("[transmute] Failed to cleanup temp session:", e);
+      }
+    }
+  }
 
   // Extract text from response
   const textPart = response.parts?.find((p) => p.type === "text");

@@ -7,9 +7,10 @@
 
 import { exec } from "../../core/exec";
 import {
-  TerminalNotAvailableError,
-  TerminalSpawnError,
-  InvalidPathError,
+  createTerminalNotAvailableError,
+  createTerminalSpawnError,
+  createInvalidPathError,
+  TerminalErrorCode,
 } from "../../core/errors";
 import type { TerminalAdapter, OpenSessionOptions } from "./types";
 
@@ -90,7 +91,7 @@ export class WezTermAdapter implements TerminalAdapter {
     // Verify WezTerm is available
     const available = await this.isAvailable();
     if (!available) {
-      throw new TerminalNotAvailableError("wezterm");
+      throw createTerminalNotAvailableError("wezterm");
     }
 
     // Build the spawn command
@@ -109,23 +110,30 @@ export class WezTermAdapter implements TerminalAdapter {
           stderr.includes("no such file or directory") ||
           stderr.includes("directory does not exist")
         ) {
-          throw new InvalidPathError(options.cwd);
+          throw createInvalidPathError(options.cwd);
         }
 
-        throw new TerminalSpawnError("wezterm", result.stderr || result.stdout);
+        throw createTerminalSpawnError(
+          "wezterm",
+          result.stderr || result.stdout,
+        );
       }
     } catch (error) {
-      // Re-throw our custom errors
+      // Re-throw our custom errors if they match our codes
+      // Since we don't have classes anymore, we check using our helper or just rethrow if it has a 'code'
+      // But actually, we just threw them above, so they will be caught here.
+      // We should check if it's already a TerminalError.
+      
       if (
-        error instanceof TerminalNotAvailableError ||
-        error instanceof InvalidPathError ||
-        error instanceof TerminalSpawnError
+        (error as any).code === TerminalErrorCode.NOT_AVAILABLE ||
+        (error as any).code === TerminalErrorCode.INVALID_PATH ||
+        (error as any).code === TerminalErrorCode.SPAWN_FAILED
       ) {
         throw error;
       }
 
       // Wrap unexpected errors
-      throw new TerminalSpawnError(
+      throw createTerminalSpawnError(
         "wezterm",
         error instanceof Error ? error.message : String(error),
       );
@@ -143,11 +151,6 @@ export class WezTermAdapter implements TerminalAdapter {
 
     // Set working directory
     args.push("--cwd", options.cwd);
-
-    // Set pane title if provided
-    if (options.title) {
-      args.push("--pane-title", options.title);
-    }
 
     // If commands are provided, join them and pass as the program to run
     if (options.commands && options.commands.length > 0) {

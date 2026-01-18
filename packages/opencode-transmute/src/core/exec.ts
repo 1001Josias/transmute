@@ -6,7 +6,12 @@
  */
 
 import { spawn } from "node:child_process";
-import { ExecError, GitNotInitializedError } from "./errors";
+import {
+  createExecError,
+  createGitNotInitializedError,
+  isWorktreeError,
+  WorktreeErrorCode,
+} from "./errors";
 
 /**
  * Result of a command execution
@@ -71,7 +76,7 @@ export async function exec(
     });
 
     proc.on("error", (err) => {
-      reject(new ExecError(`${command} ${args.join(" ")}`, err.message, -1));
+      reject(createExecError(`${command} ${args.join(" ")}`, err.message, -1));
     });
 
     proc.on("close", (code) => {
@@ -80,7 +85,7 @@ export async function exec(
 
       if (throwOnError && exitCode !== 0) {
         reject(
-          new ExecError(
+          createExecError(
             `${command} ${args.join(" ")}`,
             stderr || stdout,
             exitCode,
@@ -118,13 +123,13 @@ export async function gitExec(
   try {
     return await exec("git", args, options);
   } catch (error) {
-    if (error instanceof ExecError) {
+    if (isWorktreeError(error) && error.code === WorktreeErrorCode.EXEC_FAILED) {
       // Check for common git error patterns
       if (
-        error.stderr.includes("not a git repository") ||
-        error.stderr.includes("fatal: not a git repository")
+        error.stderr?.includes("not a git repository") ||
+        error.stderr?.includes("fatal: not a git repository")
       ) {
-        throw new GitNotInitializedError(options.cwd || process.cwd());
+        throw createGitNotInitializedError(options.cwd || process.cwd());
       }
     }
     throw error;
