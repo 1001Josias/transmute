@@ -3,6 +3,8 @@
  *
  * A plugin for task-based development with git worktrees.
  * Creates isolated environments for each task with AI-generated branch names.
+ *
+ * For programmatic use of utility functions, import from 'opencode-transmute/utils'
  */
 
 import type { Plugin, PluginInput } from "@opencode-ai/plugin";
@@ -50,7 +52,6 @@ function createTerminalAdapter(config: Config) {
  */
 export const TransmutePlugin: Plugin = async (ctx: PluginInput) => {
   // Extract client for AI operations
-  // Cast to our simplified OpenCodeClient interface
   const client = ctx.client as unknown as OpenCodeClient;
 
   // Get repository root

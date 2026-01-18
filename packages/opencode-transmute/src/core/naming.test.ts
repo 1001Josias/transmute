@@ -108,10 +108,16 @@ describe("generateFallbackBranchName", () => {
 
 describe("generateBranchNameWithAI", () => {
   let mockClient: OpenCodeClient;
+  const ephemeralSessionId = "ses_ephemeral_123";
 
   beforeEach(() => {
     mockClient = {
+      app: {
+        log: vi.fn(),
+      },
       session: {
+        create: vi.fn().mockResolvedValue({ id: ephemeralSessionId }),
+        delete: vi.fn().mockResolvedValue(undefined),
         prompt: vi.fn(),
       },
     };
@@ -133,6 +139,11 @@ describe("generateBranchNameWithAI", () => {
     expect(result.type).toBe("feat");
     expect(result.slug).toBe("add-oauth-login");
     expect(result.branch).toBe("feat/add-oauth-login");
+    // Verify ephemeral session was created and deleted
+    expect(mockClient.session.create).toHaveBeenCalledWith({});
+    expect(mockClient.session.delete).toHaveBeenCalledWith({
+      path: { id: ephemeralSessionId },
+    });
   });
 
   it("handles AI response with prefill continuation", async () => {
@@ -203,6 +214,8 @@ describe("generateBranchNameWithAI", () => {
         "session-1",
       ),
     ).rejects.toThrow("No text response from AI");
+    // Verify cleanup still happens
+    expect(mockClient.session.delete).toHaveBeenCalled();
   });
 
   it("throws error when response cannot be parsed as JSON", async () => {
@@ -236,7 +249,7 @@ describe("generateBranchNameWithAI", () => {
     ).rejects.toThrow();
   });
 
-  it("sends correct prompt to AI", async () => {
+  it("sends correct prompt to AI using ephemeral session", async () => {
     vi.mocked(mockClient.session.prompt).mockResolvedValueOnce({
       parts: [{ type: "text", text: '{"type": "feat", "slug": "test"}' }],
     });
@@ -251,8 +264,9 @@ describe("generateBranchNameWithAI", () => {
       "session-abc",
     );
 
+    // Should use ephemeral session, not the original session-abc
     expect(mockClient.session.prompt).toHaveBeenCalledWith({
-      path: { id: "session-abc" },
+      path: { id: ephemeralSessionId },
       body: {
         parts: [
           {
@@ -268,27 +282,52 @@ describe("generateBranchNameWithAI", () => {
     expect(callArgs.body.parts[0].text).toContain("Add feature");
     expect(callArgs.body.parts[0].text).toContain("A detailed description");
   });
+
+  it("cleans up ephemeral session even when prompt fails", async () => {
+    vi.mocked(mockClient.session.prompt).mockRejectedValueOnce(
+      new Error("AI Error"),
+    );
+
+    await expect(
+      generateBranchNameWithAI(
+        { id: "task-1", title: "Test" },
+        mockClient,
+        "session-1",
+      ),
+    ).rejects.toThrow("AI Error");
+
+    // Verify cleanup still happens
+    expect(mockClient.session.delete).toHaveBeenCalledWith({
+      path: { id: ephemeralSessionId },
+    });
+  });
 });
 
 describe("generateBranchName", () => {
   let mockClient: OpenCodeClient;
+  const ephemeralSessionId = "ses_ephemeral_456";
 
   beforeEach(() => {
     mockClient = {
+      app: {
+        log: vi.fn(),
+      },
       session: {
+        create: vi.fn().mockResolvedValue({ id: ephemeralSessionId }),
+        delete: vi.fn().mockResolvedValue(undefined),
         prompt: vi.fn(),
       },
     };
   });
 
-  it("validates input context", async () => {
-    await expect(
-      generateBranchName({ id: "", title: "Test" }),
-    ).rejects.toThrow();
+  it("uses fallback for invalid context instead of throwing", async () => {
+    // Empty id - should use fallback, not throw
+    const result1 = await generateBranchName({ id: "", title: "Test" });
+    expect(result1.branch).toContain("feat/");
 
-    await expect(
-      generateBranchName({ id: "task-1", title: "" }),
-    ).rejects.toThrow();
+    // Empty title - should use fallback, not throw
+    const result2 = await generateBranchName({ id: "task-1", title: "" });
+    expect(result2.branch).toContain("feat/");
   });
 
   it("uses AI when client and sessionId provided", async () => {
@@ -333,9 +372,6 @@ describe("generateBranchName", () => {
       new Error("API Error"),
     );
 
-    // Spy on console.warn
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
     const result = await generateBranchName(
       { id: "task-1", title: "Fix bug", type: "fix" },
       mockClient,
@@ -344,20 +380,20 @@ describe("generateBranchName", () => {
 
     expect(result.type).toBe("fix");
     expect(result.branch).toMatch(/^fix\/task-1/);
-    expect(warnSpy).toHaveBeenCalledWith(
-      "[transmute] AI branch naming failed, using fallback:",
-      expect.any(Error),
+    expect(mockClient.app.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          level: "warn",
+          message: expect.stringContaining("AI branch naming failed"),
+        }),
+      }),
     );
-
-    warnSpy.mockRestore();
   });
 
   it("falls back when AI returns invalid JSON", async () => {
     vi.mocked(mockClient.session.prompt).mockResolvedValueOnce({
       parts: [{ type: "text", text: "Not valid JSON at all" }],
     });
-
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await generateBranchName(
       { id: "task-1", title: "Add feature" },
@@ -366,9 +402,14 @@ describe("generateBranchName", () => {
     );
 
     expect(result.branch).toBe("feat/task-1-add-feature");
-    expect(warnSpy).toHaveBeenCalled();
-
-    warnSpy.mockRestore();
+    expect(mockClient.app.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          level: "warn",
+          message: expect.stringContaining("AI branch naming failed"),
+        }),
+      }),
+    );
   });
 });
 

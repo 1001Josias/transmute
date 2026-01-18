@@ -7,9 +7,10 @@
 
 import { exec } from "../../core/exec";
 import {
-  TerminalNotAvailableError,
-  TerminalSpawnError,
-  InvalidPathError,
+  createTerminalNotAvailableError,
+  createTerminalSpawnError,
+  createInvalidPathError,
+  isWorktreeError,
 } from "../../core/errors";
 import type { TerminalAdapter, OpenSessionOptions } from "./types";
 
@@ -90,7 +91,7 @@ export class WezTermAdapter implements TerminalAdapter {
     // Verify WezTerm is available
     const available = await this.isAvailable();
     if (!available) {
-      throw new TerminalNotAvailableError("wezterm");
+      throw createTerminalNotAvailableError("wezterm");
     }
 
     // Build the spawn command
@@ -109,23 +110,22 @@ export class WezTermAdapter implements TerminalAdapter {
           stderr.includes("no such file or directory") ||
           stderr.includes("directory does not exist")
         ) {
-          throw new InvalidPathError(options.cwd);
+          throw createInvalidPathError(options.cwd);
         }
 
-        throw new TerminalSpawnError("wezterm", result.stderr || result.stdout);
+        throw createTerminalSpawnError(
+          "wezterm",
+          result.stderr || result.stdout,
+        );
       }
     } catch (error) {
       // Re-throw our custom errors
-      if (
-        error instanceof TerminalNotAvailableError ||
-        error instanceof InvalidPathError ||
-        error instanceof TerminalSpawnError
-      ) {
+      if (isWorktreeError(error)) {
         throw error;
       }
 
       // Wrap unexpected errors
-      throw new TerminalSpawnError(
+      throw createTerminalSpawnError(
         "wezterm",
         error instanceof Error ? error.message : String(error),
       );
@@ -133,31 +133,39 @@ export class WezTermAdapter implements TerminalAdapter {
   }
 
   /**
-   * Build wezterm cli spawn arguments
+   * Build wezterm cli spawn or split-pane arguments
    *
    * @param options - Session options
    * @returns Array of command arguments
    */
   private buildSpawnArgs(options: OpenSessionOptions): string[] {
-    const args: string[] = ["cli", "spawn"];
+    // Check if we are inside a WezTerm session to decide between spawn (tab) or split-pane
+    const isInWezTerm = process.env.WEZTERM_PANE !== undefined;
+    const args: string[] = isInWezTerm
+      ? ["cli", "split-pane"]
+      : ["cli", "spawn"];
+
+    if (isInWezTerm) {
+      // For split-pane, default to right split
+      args.push("--right");
+    }
 
     // Set working directory
     args.push("--cwd", options.cwd);
 
-    // Set pane title if provided
-    if (options.title) {
-      args.push("--pane-title", options.title);
-    }
+    // Note: WezTerm CLI does not support --pane-title flag
+    // Title is ignored for now. Could be set via escape sequences in the future.
 
-    // If commands are provided, join them and pass as the program to run
+    // If commands are provided, execute them and keep the shell open
     if (options.commands && options.commands.length > 0) {
       // Use -- to separate wezterm args from the command
       args.push("--");
 
       // Combine commands with && to run sequentially
-      // Use sh -c to execute the combined command
+      // Add exec $SHELL at the end to keep the terminal open after commands complete
+      // This ensures the pane doesn't close if a command fails or completes
       const combinedCommand = options.commands.join(" && ");
-      args.push("sh", "-c", combinedCommand);
+      args.push("sh", "-c", `${combinedCommand}; exec $SHELL`);
     }
 
     return args;
