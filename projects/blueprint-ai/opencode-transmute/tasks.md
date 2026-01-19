@@ -14,14 +14,14 @@ updated_at: "2026-01-18"
 ## Task 1: Project Setup
 
 - **id:** oc-trans-001
-- **status:** done
+- **status:** todo
 - **priority:** critical
 - **description:** Inicializar estrutura do app opencode-transmute no monorepo Transmute.
 - **comment:** Package created at `packages/opencode-transmute/` (changed from `apps/` per architecture decision for npm-publishable package).
 
 ### Subtasks
 
-#### [x] Criar estrutura de diretórios
+#### [ ] Criar estrutura de diretórios
 
 Criado `packages/opencode-transmute` com estrutura:
 
@@ -46,7 +46,7 @@ packages/opencode-transmute/
 └── eslint.config.mjs
 ```
 
-#### [x] Configurar package.json
+#### [ ] Configurar package.json
 
 Dependências configuradas:
 
@@ -54,11 +54,11 @@ Dependências configuradas:
 - zod (validação)
 - `@opencode-ai/plugin` (peer dependency para SDK do OpenCode)
 
-#### [x] Configurar TypeScript
+#### [ ] Configurar TypeScript
 
 `tsconfig.json` estendendo `@repo/typescript-config/base.json`.
 
-#### [x] Registrar no Turborepo
+#### [ ] Registrar no Turborepo
 
 Package automaticamente detectado pelo pnpm workspace. Build e lint funcionando via turbo.
 
@@ -67,14 +67,14 @@ Package automaticamente detectado pelo pnpm workspace. Build e lint funcionando 
 ## Task 2: Core - AI Branch Naming
 
 - **id:** oc-trans-002
-- **status:** done
+- **status:** todo
 - **priority:** high
 - **description:** Implementar geração inteligente de nomes de branch via IA, baseada no contexto da tarefa.
 - **dependencies:** oc-trans-001
 
 ### Subtasks
 
-#### [x] Definir schema de entrada (TaskContext)
+#### [ ] Definir schema de entrada (TaskContext)
 
 ```typescript
 interface TaskContext {
@@ -92,7 +92,7 @@ interface BranchNameResult {
 }
 ```
 
-#### [x] Implementar prompt para geração de branch name
+#### [ ] Implementar prompt para geração de branch name
 
 Prompt estruturado criado em `naming.ts` que instrui a IA a:
 
@@ -103,7 +103,7 @@ Prompt estruturado criado em `naming.ts` que instrui a IA a:
 - Seguir convenções de git branch naming
 - Responder em formato JSON
 
-#### [x] Implementar função generateBranchName
+#### [ ] Implementar função generateBranchName
 
 ```typescript
 // packages/opencode-transmute/src/core/naming.ts
@@ -120,7 +120,7 @@ Implementada com:
 - `generateBranchName()` - função principal que tenta IA e faz fallback
 - `generateBranchNameWithAI()` - usa OpenCode client para chamar LLM
 
-#### [x] Implementar sanitização e validação
+#### [ ] Implementar sanitização e validação
 
 `sanitizeBranchName()` garante que o nome gerado:
 
@@ -129,14 +129,14 @@ Implementada com:
 - Não excede limite de tamanho
 - Tem formato `<type>/<slug>`
 
-#### [x] Implementar fallback determinístico
+#### [ ] Implementar fallback determinístico
 
 `generateFallbackBranchName()` gera nome baseado em:
 
 - Task ID + primeiras palavras do título
 - Ex: `feat/task-123-implement-auth`
 
-#### [x] Adicionar testes unitários
+#### [ ] Adicionar testes unitários
 
 30 testes criados em `naming.test.ts` cobrindo:
 
@@ -151,14 +151,14 @@ Implementada com:
 ## Task 3: Core - Git Worktree Management
 
 - **id:** oc-trans-003
-- **status:** done
+- **status:** todo
 - **priority:** high
 - **description:** Implementar criação e gestão de git worktrees.
 - **dependencies:** oc-trans-001
 
 ### Subtasks
 
-#### [x] Definir interface de worktree
+#### [ ] Definir interface de worktree
 
 ```typescript
 interface Worktree {
@@ -174,29 +174,29 @@ interface CreateWorktreeOptions {
 }
 ```
 
-#### [x] Implementar listWorktrees
+#### [ ] Implementar listWorktrees
 
 Executar `git worktree list --porcelain` e parsear output.
 
-#### [x] Implementar createWorktree
+#### [ ] Implementar createWorktree
 
 Executar `git worktree add -b <branch> <path> <base>`.
 
 - Verificar se branch já existe
 - Criar diretório worktrees se necessário
 
-#### [x] Implementar worktreeExists
+#### [ ] Implementar worktreeExists
 
 Verificar se já existe worktree para uma branch específica.
 
-#### [x] Tratamento de erros
+#### [ ] Tratamento de erros
 
 - Branch já existe
 - Diretório já existe
 - Git não inicializado
 - Base branch não existe
 
-#### [x] Adicionar testes unitários
+#### [ ] Adicionar testes unitários
 
 Cobrir casos com vitest:
 
@@ -212,14 +212,14 @@ Cobrir casos com vitest:
 ## Task 4: Core - Session Persistence
 
 - **id:** oc-trans-004
-- **status:** done
+- **status:** todo
 - **priority:** high
 - **description:** Implementar persistência mínima de estado de sessões.
 - **dependencies:** oc-trans-001
 
 ### Subtasks
 
-#### [x] Definir schema de estado
+#### [ ] Definir schema de estado
 
 ```typescript
 const sessionSchema = z.object({
@@ -236,26 +236,26 @@ const stateSchema = z.object({
 });
 ```
 
-#### [x] Implementar loadState
+#### [ ] Implementar loadState
 
 Ler `.opencode/transmute.sessions.json`.
 Retornar estado vazio se arquivo não existe.
 Validar com Zod.
 
-#### [x] Implementar saveState
+#### [ ] Implementar saveState
 
 Escrever estado validado no arquivo.
 Criar diretório `.opencode` se necessário.
 
-#### [x] Implementar addSession / removeSession
+#### [ ] Implementar addSession / removeSession
 
 Helpers para manipular lista de sessões.
 
-#### [x] Implementar findSessionByTask
+#### [ ] Implementar findSessionByTask
 
 Buscar sessão existente por taskId.
 
-#### [x] Adicionar testes unitários
+#### [ ] Adicionar testes unitários
 
 Cobrir casos com vitest:
 
@@ -270,14 +270,14 @@ Cobrir casos com vitest:
 ## Task 5: Adapter - WezTerm Integration
 
 - **id:** oc-trans-005
-- **status:** done
+- **status:** todo
 - **priority:** high
 - **description:** Implementar integração com WezTerm para abrir sessões de terminal.
 - **dependencies:** oc-trans-001
 
 ### Subtasks
 
-#### [x] Definir interface abstrata de terminal
+#### [ ] Definir interface abstrata de terminal
 
 Interface já definida em `types.ts`:
 
@@ -296,11 +296,11 @@ interface OpenSessionOptions {
 }
 ```
 
-#### [x] Verificar disponibilidade do WezTerm
+#### [ ] Verificar disponibilidade do WezTerm
 
 Implementado `isAvailable()` que executa `wezterm --version` e verifica exit code.
 
-#### [x] Implementar openSession para WezTerm
+#### [ ] Implementar openSession para WezTerm
 
 Implementado usando `wezterm cli spawn --cwd <path>`:
 
@@ -308,7 +308,7 @@ Implementado usando `wezterm cli spawn --cwd <path>`:
 - Suporta execução de comandos via `sh -c`
 - Verifica disponibilidade antes de abrir
 
-#### [x] Tratamento de erros
+#### [ ] Tratamento de erros
 
 Novas classes de erro em `errors.ts`:
 
@@ -316,7 +316,7 @@ Novas classes de erro em `errors.ts`:
 - `TerminalSpawnError` - Falha ao abrir sessão
 - `InvalidPathError` - Path inválido
 
-#### [x] Adicionar testes unitários
+#### [ ] Adicionar testes unitários
 
 21 testes criados em `wezterm.test.ts` cobrindo:
 
@@ -330,14 +330,14 @@ Novas classes de erro em `errors.ts`:
 ## Task 6: Core - Hooks System
 
 - **id:** oc-trans-006
-- **status:** done
+- **status:** todo
 - **priority:** medium
 - **description:** Implementar sistema de hooks declarativos para execução pós-setup.
 - **dependencies:** oc-trans-001
 
 ### Subtasks
 
-#### [x] Definir schema de configuração de hooks
+#### [ ] Definir schema de configuração de hooks
 
 Schema já definido com Zod:
 
@@ -348,7 +348,7 @@ const hooksConfigSchema = z.object({
 });
 ```
 
-#### [x] Implementar executeHooks
+#### [ ] Implementar executeHooks
 
 Implementado com:
 
@@ -359,7 +359,7 @@ Implementado com:
 - Modo `stopOnError: false` (lenient) - continua após falhas
 - Suporte a variáveis de ambiente customizadas
 
-#### [x] Implementar logging de hooks
+#### [ ] Implementar logging de hooks
 
 Resultado de cada comando inclui:
 
@@ -369,7 +369,7 @@ Resultado de cada comando inclui:
 - `exitCode`: código de saída
 - `duration`: tempo de execução em ms
 
-#### [x] Adicionar testes unitários
+#### [ ] Adicionar testes unitários
 
 32 testes criados em `hooks.test.ts` cobrindo:
 
@@ -387,14 +387,14 @@ Resultado de cada comando inclui:
 ## Task 7: Tool - start-task
 
 - **id:** oc-trans-007
-- **status:** done
+- **status:** todo
 - **priority:** critical
 - **description:** Implementar a tool principal que orquestra criação de ambiente isolado.
 - **dependencies:** oc-trans-002, oc-trans-003, oc-trans-004, oc-trans-005, oc-trans-006
 
 ### Subtasks
 
-#### [x] Definir schema de input da tool
+#### [ ] Definir schema de input da tool
 
 Schema definido com Zod:
 
@@ -409,7 +409,7 @@ const startTaskInputSchema = z.object({
 });
 ```
 
-#### [x] Implementar fluxo completo
+#### [ ] Implementar fluxo completo
 
 Fluxo implementado em `startTask()`:
 
@@ -422,7 +422,7 @@ Fluxo implementado em `startTask()`:
 7. Abre terminal no worktree (`openSession`)
 8. Retorna resultado
 
-#### [x] Definir schema de output
+#### [ ] Definir schema de output
 
 ```typescript
 const startTaskOutputSchema = z.object({
@@ -435,7 +435,7 @@ const startTaskOutputSchema = z.object({
 });
 ```
 
-#### [x] Registrar como tool do OpenCode
+#### [ ] Registrar como tool do OpenCode
 
 Tool registrada no plugin com:
 
@@ -444,7 +444,7 @@ Tool registrada no plugin com:
 - Schemas de input/output integrados
 - Execução do fluxo completo
 
-#### [x] Adicionar testes unitários
+#### [ ] Adicionar testes unitários
 
 19 testes criados em `start-task.test.ts` cobrindo:
 
@@ -462,14 +462,14 @@ Tool registrada no plugin com:
 ## Task 8: Configuration
 
 - **id:** oc-trans-008
-- **status:** done
+- **status:** todo
 - **priority:** medium
 - **description:** Implementar sistema de configuração do plugin.
 - **dependencies:** oc-trans-001
 
 ### Subtasks
 
-#### [x] Definir schema de configuração
+#### [ ] Definir schema de configuração
 
 Schema implementado em `config.ts`:
 
@@ -487,7 +487,7 @@ const configSchema = z.object({
 });
 ```
 
-#### [x] Implementar loadConfig
+#### [ ] Implementar loadConfig
 
 Buscar configuração em ordem de precedência:
 
@@ -503,19 +503,19 @@ Funções implementadas:
 - `loadConfigFromOpencodeConfig()` - carrega de opencode.config.ts
 - `findConfigFile()` - encontra arquivo de config no repositório
 
-#### [x] Validar configuração
+#### [ ] Validar configuração
 
 - `validateConfig()` - valida com Zod e retorna resultado tipado
 - `mergeConfig()` - merge com defaults via Zod parse
 
-#### [x] Integração com plugin
+#### [ ] Integração com plugin
 
 - Plugin agora carrega config na inicialização
 - Terminal adapter criado baseado em config
 - Hooks e flags respeitam configuração
 - Logs de fonte de configuração para debugging
 
-#### [x] Adicionar testes unitários
+#### [ ] Adicionar testes unitários
 
 30 testes criados em `config.test.ts` cobrindo:
 
@@ -564,20 +564,20 @@ Verificar que worktree pode ser removido corretamente.
 ## Task 10: Documentation
 
 - **id:** oc-trans-010
-- **status:** done
+- **status:** todo
 - **priority:** low
 - **description:** Documentar uso e configuração do plugin.
 - **dependencies:** oc-trans-007, oc-trans-008
 
 ### Subtasks
 
-#### [x] Criar seção Plugins no docs
+#### [ ] Criar seção Plugins no docs
 
 Nova seção `apps/docs/content/docs/plugins/` criada com:
 
 - `index.mdx` - Overview da seção de plugins
 
-#### [x] Documentação do Plugin
+#### [ ] Documentação do Plugin
 
 Documentação completa em `apps/docs/content/docs/plugins/opencode-transmute/`:
 
@@ -586,7 +586,7 @@ Documentação completa em `apps/docs/content/docs/plugins/opencode-transmute/`:
 - `api.mdx` - Referência de API (tools, funções, schemas, erros)
 - `troubleshooting.mdx` - Guia de solução de problemas
 
-#### [x] Build do docs funcionando
+#### [ ] Build do docs funcionando
 
 Verificado que `pnpm build` no apps/docs compila as novas páginas corretamente.
 
