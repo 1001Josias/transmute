@@ -237,7 +237,7 @@ describe("WezTermAdapter", () => {
           "--",
           "sh",
           "-c",
-          "pnpm install && pnpm dev; exec $SHELL",
+          "'pnpm install && pnpm dev; exec $SHELL'",
         ],
         { throwOnError: false },
       );
@@ -273,7 +273,7 @@ describe("WezTermAdapter", () => {
           "--",
           "sh",
           "-c",
-          "opencode --session abc123; exec $SHELL",
+          "'opencode --session abc123; exec $SHELL'",
         ],
         { throwOnError: false },
       );

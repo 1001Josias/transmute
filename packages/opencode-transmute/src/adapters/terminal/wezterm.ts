@@ -165,7 +165,12 @@ export class WezTermAdapter implements TerminalAdapter {
       // Add exec $SHELL at the end to keep the terminal open after commands complete
       // This ensures the pane doesn't close if a command fails or completes
       const combinedCommand = options.commands.join(" && ");
-      args.push("sh", "-c", `${combinedCommand}; exec $SHELL`);
+
+      // Critical: Escape single quotes in the command to safely wrap it in single quotes for sh -c
+      // This prevents syntax errors when the command itself contains quotes (e.g. JSON arguments)
+      const escapedCommand = combinedCommand.replace(/'/g, "'\\''");
+
+      args.push("sh", "-c", `'${escapedCommand}; exec $SHELL'`);
     }
 
     return args;
