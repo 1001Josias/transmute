@@ -1,5 +1,5 @@
 ---
-description: Generates git branch names from task context. Invoke with @branch-namer or let the primary agent use it automatically when creating worktrees.
+description: Generates git branch names in JSON format from task context. Returns {"type": "feat|fix|...", "slug": "..."}
 mode: subagent
 model: anthropic/claude-3-5-haiku-20241022
 temperature: 0.1
@@ -41,4 +41,4 @@ Input: "Task: oc-trans-002 - AI Branch Naming"
 Output: `{"type": "feat", "slug": "oc-trans-002-ai-branch-naming"}`
 
 Input: "Fix memory leak in worker pool"  
-Output: `{"type": "fix", "slug": "fix-worker-pool-memory-leak"}`
+Output: `{"type": "fix", "slug": "worker-pool-memory-leak"}`
