@@ -11,53 +11,18 @@ import { z } from "zod";
  * Simplified OpenCode SDK client interface for branch name generation.
  * Only includes the session.prompt method needed for AI inference.
  */
-export interface OpenCodeClient {
-  session: {
-    prompt(options: {
-      path: { id: string };
-      body: {
-        parts: Array<{ type: "text"; text: string }>;
-        assistant?: { prefill?: string };
-      };
-    }): Promise<{
-      parts?: Array<{ type: string; text?: string }>;
-    }>;
-  };
-}
+
 
 /**
  * Prompt template for AI branch name generation.
  * Uses structured output to get consistent JSON responses.
  */
-const BRANCH_NAME_PROMPT = `You are a git branch name generator. Analyze the task and generate an appropriate branch name.
 
-Task Information:
-- ID: {id}
-- Title: {title}
-- Description: {description}
-
-Generate a branch name following these rules:
-1. Infer the type from context:
-   - feat: new features, additions
-   - fix: bug fixes, corrections
-   - refactor: code restructuring without changing behavior
-   - docs: documentation changes
-   - chore: maintenance, dependencies, config
-   - test: test additions or modifications
-2. Create a concise, descriptive slug (max 40 characters)
-3. Use lowercase letters, numbers, and hyphens only
-4. No spaces, underscores, or special characters
-
-Respond with ONLY valid JSON in this format, no explanation:
-{"type": "feat|fix|refactor|docs|chore|test", "slug": "descriptive-slug-here"}`;
 
 /**
  * Schema for validating AI response
  */
-const branchAIResponseSchema = z.object({
-  type: z.enum(["feat", "fix", "refactor", "docs", "chore", "test"]),
-  slug: z.string().min(1).max(60),
-});
+
 
 /**
  * Context provided to the branch name generator
@@ -134,21 +99,46 @@ export const branchNameResultSchema = z.object({
  * // result: { branch: "feat/add-google-oauth-login", type: "feat", slug: "add-google-oauth-login" }
  * ```
  */
-export async function generateBranchName(
+/**
+ * Generate a branch name from agent-provided values or fallback to deterministic
+ *
+ * @param context - Task context
+ * @param branchName - Optional pre-generated branch name from agent (type + slug)
+ * @returns Branch name result
+ *
+ * @example
+ * ```ts
+ * // Agent provides the branch name
+ * const result = generateBranchName(
+ *   { id: "task-123", title: "Add OAuth" },
+ *   { type: "feat", slug: "add-google-oauth-login" }
+ * )
+ * // result: { branch: "feat/add-google-oauth-login", type: "feat", slug: "add-google-oauth-login" }
+ *
+ * // Or fallback to deterministic
+ * const result = generateBranchName({ id: "task-123", title: "Add OAuth" })
+ * // result: { branch: "feat/task-123-add-oauth", type: "feat", slug: "task-123-add-oauth" }
+ * ```
+ */
+export function generateBranchName(
   context: TaskContext,
-  client?: OpenCodeClient,
-  sessionId?: string,
-): Promise<BranchNameResult> {
+  branchName?: { type: BranchType; slug: string },
+): BranchNameResult {
   // Validate input
   taskContextSchema.parse(context);
 
-  // If client and sessionId provided, try AI generation
-  if (client && sessionId) {
+  // If agent provided branch name, use it
+  if (branchName) {
     try {
-      return await generateBranchNameWithAI(context, client, sessionId);
+      const sanitizedSlug = sanitizeBranchName(branchName.slug, 40);
+      return {
+        branch: `${branchName.type}/${sanitizedSlug}`,
+        type: branchName.type,
+        slug: sanitizedSlug,
+      };
     } catch (error) {
       console.warn(
-        "[transmute] AI branch naming failed, using fallback:",
+        "[transmute] Invalid branch name provided, using fallback:",
         error,
       );
     }
@@ -167,65 +157,7 @@ export async function generateBranchName(
  * @returns Branch name result
  * @throws Error if AI call fails (caller should handle fallback)
  */
-export async function generateBranchNameWithAI(
-  context: TaskContext,
-  client: OpenCodeClient,
-  sessionId: string,
-): Promise<BranchNameResult> {
-  // Build the prompt with task context
-  const prompt = BRANCH_NAME_PROMPT.replace("{id}", context.id)
-    .replace("{title}", context.title)
-    .replace("{description}", context.description || "No description provided");
 
-  // Call the AI via OpenCode client
-  const response = await client.session.prompt({
-    path: { id: sessionId },
-    body: {
-      parts: [{ type: "text", text: prompt }],
-      // Prefill helps the AI respond with JSON directly
-      assistant: { prefill: '{"type":"' },
-    },
-  });
-
-  // Extract text from response
-  const textPart = response.parts?.find((p) => p.type === "text");
-  if (!textPart?.text) {
-    throw new Error("No text response from AI");
-  }
-
-  // Try to extract JSON from the response
-  // The response might be:
-  // 1. A complete JSON object: {"type": "feat", "slug": "..."}
-  // 2. A continuation after prefill: feat", "slug": "..."} (when prefill is '{"type":"')
-  // 3. Wrapped in markdown: ```json\n{...}\n```
-
-  let jsonStr = textPart.text.trim();
-
-  // First, try to find a complete JSON object
-  const jsonMatch = jsonStr.match(/\{[\s\S]*?\}/);
-  if (jsonMatch) {
-    jsonStr = jsonMatch[0];
-  } else {
-    // No complete JSON found - might be a prefill continuation
-    // Try to reconstruct by prepending the prefill
-    jsonStr = '{"type":"' + jsonStr;
-    // Clean up potential double quotes or malformed JSON
-    jsonStr = jsonStr.replace(/""+/g, '"');
-  }
-
-  // Parse and validate with Zod
-  const parsed = JSON.parse(jsonStr);
-  const validated = branchAIResponseSchema.parse(parsed);
-
-  // Sanitize the slug
-  const sanitizedSlug = sanitizeBranchName(validated.slug, 40);
-
-  return {
-    branch: `${validated.type}/${sanitizedSlug}`,
-    type: validated.type,
-    slug: sanitizedSlug,
-  };
-}
 
 /**
  * Generate a deterministic fallback branch name
@@ -241,8 +173,20 @@ export function generateFallbackBranchName(
       ? (context.type as BranchType)
       : "feat";
 
+  // Remove the task ID from the title if it appears at the start to avoid duplication
+  // e.g., title "oc-trans-002 - AI Branch Naming" with id "oc-trans-002" would otherwise
+  // produce "oc-trans-002-oc-trans-002-ai-branch-naming"
+  const normalizedId = context.id.toLowerCase();
+  const normalizedTitle = context.title.toLowerCase();
+  let cleanTitle = context.title;
+
+  // Check if title starts with the ID (with optional separator like " - " or ": ")
+  if (normalizedTitle.startsWith(normalizedId)) {
+    cleanTitle = context.title.slice(context.id.length).replace(/^[\s\-:]+/, "");
+  }
+
   // Slugify the title
-  const slug = slugify(`${context.id}-${context.title}`);
+  const slug = slugify(`${context.id}-${cleanTitle}`);
 
   return {
     branch: `${type}/${slug}`,
