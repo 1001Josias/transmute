@@ -13,5 +13,9 @@
      "eslint-config-next": "16.1.1",
      "typescript": "^5",
      "eslint": "^9"
+  },
+  "exports": {
+    "./next": "./next.js",
+    "./base": "./base.js"
   }
 }

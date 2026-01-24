@@ -1,4 +1,21 @@
-import { config } from "@repo/eslint-config/base";
+import { FlatCompat } from "@eslint/eslintrc";
+import js from "@eslint/js";
+import path from "path";
+import { fileURLToPath } from "url";
 
-/** @type {import("eslint").Linter.Config} */
-export default config;
+// Mimic CommonJS variables
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const compat = new FlatCompat({
+    baseDirectory: __dirname,
+    recommendedConfig: js.configs.recommended,
+    allConfig: js.configs.all
+});
+
+export default [
+    ...compat.extends("@repo/eslint-config/base"),
+    {
+        ignores: ["dist/**", ".opencode/**", "coverage/**"]
+    }
+];
