@@ -45,6 +45,20 @@ export * from "./tools/setup-agents";
 import { tool } from "@opencode-ai/plugin";
 
 export const TransmutePlugin: Plugin = async () => {
+  // Auto-setup: Attempt to install agents and config in background
+  // We use setTimeout to not block the plugin initialization
+  setTimeout(() => {
+    // Determine .opencode directory location
+    setupAgentsTool.setupAgents({ overwrite: false, createConfig: true })
+        .catch(err => {
+            // Validate if error is "Could not locate source agents directory" which is expected in some envs
+            // Only log if it's unexpected
+            if (!err.message?.includes("Could not locate source agents")) {
+                 console.warn("[transmute] Auto-setup failed:", err);
+            }
+        });
+  }, 1000);
+
   return {
     tool: {
       create_workspace: tool({
