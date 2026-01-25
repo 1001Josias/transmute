@@ -2,6 +2,7 @@ import { z } from "zod";
 import path from "path";
 import { listWorktrees, removeWorktree } from "../core/worktree";
 import { loadState, removeSession, type SessionState } from "../core/session";
+import { loadConfig, resolveWorktreesDir } from "../core/config";
 import { getGitRoot } from "../core/exec";
 
 export const cleanWorkspacesInputSchema = z.object({
@@ -36,6 +37,9 @@ export async function cleanWorkspaces(input: CleanWorkspacesInput): Promise<Clea
     };
 
     try {
+        const config = await loadConfig(repoRoot);
+        const worktreesDir = resolveWorktreesDir(repoRoot, config);
+
         const worktrees = await listWorktrees(repoRoot);
         const state: SessionState = await loadState(repoRoot);
         const sessions = state.sessions;
@@ -54,7 +58,10 @@ export async function cleanWorkspaces(input: CleanWorkspacesInput): Promise<Clea
 
             if (!session) {
                 // Orphaned
-                if (wt.path.includes("worktrees") || validated.force) {
+                // Check if the worktree is inside the configured worktrees directory
+                const isSafeToDelete = wt.path.startsWith(worktreesDir) || validated.force;
+                
+                if (isSafeToDelete) {
                     shouldDelete = true;
                     reason = "Orphaned worktree";
                 }
