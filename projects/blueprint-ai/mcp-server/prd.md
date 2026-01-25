@@ -4,7 +4,7 @@ title: MCP Server Integration
 status: draft
 version: "1.0"
 created_at: "2026-01-11"
-updated_at: "2026-01-11"
+updated_at: "2026-01-25"
 author: ai-agent
 ---
 

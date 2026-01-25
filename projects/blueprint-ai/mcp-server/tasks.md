@@ -2,7 +2,7 @@
 project_id: mcp-server
 prd_version: "1.0"
 created_at: "2026-01-11"
-updated_at: "2026-01-11"
+updated_at: "2026-01-25"
 ---
 
 # Tasks: MCP Server Integration
@@ -10,21 +10,21 @@ updated_at: "2026-01-11"
 ## Task 1: Server Initialization
 
 - **id:** mcp-001
-- **status:** todo
+- **status:** done
 - **priority:** high
 - **description:** Setup the MCP server infrastructure within the monorepo.
 
 ### Subtasks
 
-#### [ ] Create Package
+#### [x] Create Package
 
 Create `apps/mcp-server` (or `packages/mcp-server` if it's a library, but likely an app/service). Use `@modelcontextprotocol/sdk`.
 
-#### [ ] Configure Build
+#### [x] Configure Build
 
 Update `turbo.json` and `package.json` to include the new app in the workspace.
 
-#### [ ] Basic Server
+#### [x] Basic Server
 
 Implement a simple "Hello World" MCP server over Stdio to verify connectivity.
 
