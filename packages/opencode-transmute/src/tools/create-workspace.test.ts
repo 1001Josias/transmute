@@ -21,7 +21,13 @@ vi.mock("../core/naming", async (importOriginal) => {
 });
 vi.mock("../core/worktree");
 vi.mock("../core/session");
-vi.mock("../core/hooks");
+vi.mock("../core/hooks", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../core/hooks")>();
+  return {
+    ...actual,
+    executeAfterCreateHooks: vi.fn(),
+  };
+});
 vi.mock("../core/exec");
 
 describe("createWorkspace tool", () => {

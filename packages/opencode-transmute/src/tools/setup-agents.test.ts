@@ -65,7 +65,7 @@ describe("setupAgents Tool", () => {
             throw new Error("ENOENT");
         });
         
-        const result = await setupAgents({ overwrite: false });
+        const result = await setupAgents({ overwrite: false, createConfig: true });
         
         expect(result.success).toBe(true);
         expect(result.installedAgents).toEqual(["task-manager.md", "cleaner.md"]);
@@ -84,7 +84,7 @@ describe("setupAgents Tool", () => {
         // Mock access to succeed for target file (it exists)
         vi.mocked(fs.access).mockResolvedValue(undefined);
 
-        const result = await setupAgents({ overwrite: false });
+        const result = await setupAgents({ overwrite: false, createConfig: true });
         
         expect(result.installedAgents).toEqual([]);
         expect(result.skippedAgents).toEqual(["task-manager.md"]);
@@ -96,9 +96,77 @@ describe("setupAgents Tool", () => {
          vi.mocked(fs.readdir).mockResolvedValue(["task-manager.md"] as any);
          vi.mocked(fs.access).mockResolvedValue(undefined); // exists
 
-         const result = await setupAgents({ overwrite: true });
+         const result = await setupAgents({ overwrite: true, createConfig: true });
          
          expect(result.installedAgents).toEqual(["task-manager.md"]);
          expect(fs.copyFile).toHaveBeenCalledTimes(1);
+    });
+
+    it("should create default config when enabled", async () => {
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         vi.mocked(fs.readdir).mockResolvedValue([] as any); // No agents to copy for this test
+         
+         // Mock access
+         vi.mocked(fs.access).mockImplementation(async (p) => {
+             const pStr = p as string;
+             // Ensure package.json check passes
+             if (pStr.endsWith("package.json")) return undefined;
+             
+             // Ensure source dir check passes (using regex or substring as the path is dynamic in test)
+             if (pStr.includes(".opencode/agents") && !pStr.endsWith(".md")) {
+                 // But wait, the error says it's looking at .../src/tools/.opencode/agents
+                 // which implies it didn't find package.json in the loop and fell back to relative?
+                 // Let's verify what path checking logic uses.
+                 // It checks parent dirs up to 5 levels.
+                 // In test, currentDir is likely .../src/tools
+                 
+                 // Let's just allow access if it looks like the agents dir
+                 return undefined;
+             }
+
+             // Fail for config file (simulating it doesn't exist to trigger creation)
+             if (pStr.endsWith("transmute.config.json")) {
+                 throw new Error("ENOENT");
+             }
+             
+             // Allow other checks?
+             return undefined;
+         });
+
+         const result = await setupAgents({ overwrite: false, createConfig: true });
+         
+         expect(result.success).toBe(true);
+         expect(fs.writeFile).toHaveBeenCalledWith(
+             "/repo/root/.opencode/transmute.config.json",
+             expect.stringContaining("worktreesDir"),
+             "utf-8"
+         );
+    });
+
+    it("should NOT overwrite existing config if overwrite is false", async () => {
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         vi.mocked(fs.readdir).mockResolvedValue([] as any);
+
+         // Mock access
+         vi.mocked(fs.access).mockImplementation(async (p) => {
+             const pStr = p as string;
+             if (pStr.endsWith("package.json")) return undefined;
+             
+             // Simulate config file EXISTS
+             if (pStr.endsWith("transmute.config.json")) {
+                 return undefined;
+             }
+             
+             // Agents dir logic (if needed for flow)
+             if (pStr.includes(".opencode/agents")) return undefined;
+
+             throw new Error("ENOENT");
+         });
+
+         const result = await setupAgents({ overwrite: false, createConfig: true });
+         
+         expect(result.success).toBe(true);
+         // Should NOT have written config
+         expect(fs.writeFile).not.toHaveBeenCalled();
     });
 });

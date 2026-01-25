@@ -16,11 +16,15 @@ import {
 import { createWorktree, removeWorktree } from "../core/worktree";
 import { findSessionByTask, addSession, type Session } from "../core/session";
 import { executeAfterCreateHooks, type HooksConfig } from "../core/hooks";
+import { loadConfig, resolveWorktreesDir } from "../core/config";
+import path from "path";
 import { getGitRoot } from "../core/exec";
 import type {
   TerminalAdapter,
   OpenSessionOptions,
 } from "../adapters/terminal/types";
+
+// ... existing imports
 
 /**
  * Input schema for the create-workspace tool
@@ -104,13 +108,16 @@ export async function createWorkspace(
   // Get repository root
   const repoRoot = basePath || (await getGitRoot());
 
-  // Extract options with defaults
+  // Load configuration
+  const config = await loadConfig(repoRoot);
+
+  // Extract options with defaults from config
   const {
     opencodeSessionId,
     terminal,
-    hooks,
-    openTerminal = true,
-    runHooks = true,
+    hooks = config.hooks,
+    openTerminal = config.autoOpenTerminal,
+    runHooks = config.autoRunHooks,
     terminalCommands,
   } = options;
 
@@ -162,10 +169,15 @@ export async function createWorkspace(
   const branchResult = generateBranchName(taskContext, branchNameHint);
 
   // 3. Create worktree
+  const worktreesBaseDir = resolveWorktreesDir(repoRoot, config);
+  const branchSlug = branchResult.branch.replace(/\//g, "-");
+  const targetDir = path.join(worktreesBaseDir, branchSlug);
+
   const worktree = await createWorktree({
     branch: branchResult.branch,
-    baseBranch: validatedInput.baseBranch || "main",
+    baseBranch: validatedInput.baseBranch || config.defaultBaseBranch,
     cwd: repoRoot,
+    targetDir: targetDir,
   });
 
   // 4. Persist session, hooks, and terminal (with rollback)

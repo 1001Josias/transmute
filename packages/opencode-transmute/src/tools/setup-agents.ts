@@ -2,12 +2,15 @@ import { z } from "zod";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getGitRoot } from "../core/exec";
+import { defaultConfig } from "../core/config";
 
 export const setupAgentsInputSchema = z.object({
   /** Destination directory (defaults to .opencode/agents in repo root) */
   targetDir: z.string().optional(),
   /** Whether to overwrite existing agents */
   overwrite: z.boolean().default(false),
+  /** Whether to create default config file if missing */
+  createConfig: z.boolean().default(true),
 });
 
 export type SetupAgentsInput = z.infer<typeof setupAgentsInputSchema>;
@@ -88,6 +91,11 @@ export async function setupAgents(input: SetupAgentsInput): Promise<SetupAgentsO
         : path.resolve(repoRoot, ".opencode/agents");
         
     await fs.mkdir(targetDir, { recursive: true });
+
+    // Create default config if requested
+    if (validated.createConfig) {
+        await createDefaultConfig(targetDir, false);
+    }
     
     // List agents to copy
     const agents = await fs.readdir(sourceDir);
@@ -124,4 +132,30 @@ export async function setupAgents(input: SetupAgentsInput): Promise<SetupAgentsO
         skippedAgents: skipped,
         message: `Installed ${installed.length} agents. Skipped ${skipped.length}.`
     };
+}
+
+/**
+ * Internal helper to create default config file
+ */
+async function createDefaultConfig(targetDir: string, overwrite: boolean): Promise<boolean> {
+    const configPath = path.join(targetDir, "../transmute.config.json");
+    
+    try {
+        await fs.access(configPath);
+        if (!overwrite) return false;
+    } catch {
+        // Does not exist, proceed
+    }
+    
+    try {
+        await fs.writeFile(
+            configPath, 
+            JSON.stringify(defaultConfig, null, 2),
+            "utf-8"
+        );
+        return true;
+    } catch (error) {
+        console.warn(`[transmute] Failed to create default config at ${configPath}:`, error);
+        return false;
+    }
 }
